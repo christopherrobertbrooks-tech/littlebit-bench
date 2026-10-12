@@ -50,7 +50,7 @@ index 446b1ed..b78500a 100644
      # Note: Default values are set to None.
      # This allows `LittleBitModel` to load parameters from config files natively,
 diff --git a/main.py b/main.py
-index d5f6810..7d1ef71 100644
+index d5f6810..bbc09a1 100644
 --- a/main.py
 +++ b/main.py
 @@ -6,14 +6,12 @@ import json
@@ -88,7 +88,7 @@ index d5f6810..7d1ef71 100644
      parser.add_argument("--quant_func", type=str, default="STEBinary")
      parser.add_argument("--quant_mod", type=str, default="LittleBitLinear")
  
-@@ -84,6 +86,14 @@ def get_args():
+@@ -84,6 +86,16 @@ def get_args():
      parser.add_argument("--use_itq", type=str2bool, default=False)
      parser.add_argument("--itq_n_iter", type=int, default=50)
  
@@ -97,13 +97,15 @@ index d5f6810..7d1ef71 100644
 +    parser.add_argument("--precision", type=str, default="bf16", choices=["bf16", "fp16"])
 +    parser.add_argument("--teacher_dtype", type=str, default="auto", choices=["auto", "bf16", "fp16", "fp32"])
 +    parser.add_argument("--max_train_samples", type=int, default=-1, help="train on a seeded random subset")
++    parser.add_argument("--fp16_init_scale", type=float, default=1.0,
++                        help="first fp16 loss scale (LittleBit's losses are ~1e5; torch's 2^16 overflows)")
 +    parser.add_argument("--load_direct_to_gpu", type=str2bool, default=False,
 +                        help="build the student on the GPU (for hosts with less RAM than the model)")
 +
      args = parser.parse_args()
  
      return args
-@@ -105,7 +115,8 @@ def get_training_arguments(args, save_dir):
+@@ -105,7 +117,8 @@ def get_training_arguments(args, save_dir):
          gradient_accumulation_steps=args.gradient_accumulation_steps,
          warmup_ratio=args.warmup_ratio,
          num_train_epochs=args.num_train_epochs,
@@ -113,7 +115,7 @@ index d5f6810..7d1ef71 100644
          logging_steps=1,
          save_strategy="no",
          save_steps=10000,
-@@ -125,7 +136,7 @@ def load_student_model(args, device_map, torch_dtype):
+@@ -125,7 +138,7 @@ def load_student_model(args, device_map, torch_dtype):
      model = AutoModelForCausalLM.from_pretrained(
          args.model_id,
          torch_dtype=torch_dtype,
@@ -122,7 +124,7 @@ index d5f6810..7d1ef71 100644
          low_cpu_mem_usage=True,
          trust_remote_code=True,
      )
-@@ -138,11 +149,30 @@ def load_student_model(args, device_map, torch_dtype):
+@@ -138,11 +151,30 @@ def load_student_model(args, device_map, torch_dtype):
      if device_map:
          model.to(device_map if isinstance(device_map, (str, torch.device)) else list(device_map.values())[0])
  
@@ -153,7 +155,7 @@ index d5f6810..7d1ef71 100644
      with open(config_path, 'r') as f:
          config = json.load(f)
  
-@@ -208,12 +238,19 @@ def main():
+@@ -208,17 +240,28 @@ def main():
  
      logger.info(f"Preparing training data ({args.dataset})...")
      datasets = prepare_dataset(args, tokenizer)
@@ -175,7 +177,16 @@ index d5f6810..7d1ef71 100644
  
      training_args = get_training_arguments(args, save_dir)
  
-@@ -240,6 +277,7 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+     logger.info(f"Setting trainer...")
+     trainer = setup_trainer(model, teacher_model, tokenizer, datasets, training_args, args)
++    if args.precision == "fp16" and getattr(trainer.accelerator, "scaler", None) is not None:
++        # [littlebit-bench] the KL is summed over every token and the layer MSE is x10, so the loss starts near 1e5 and
++        # fp16 gradients overflow at torch's default scale of 2^16: ~19 steps get skipped while it backs off.
++        trainer.accelerator.scaler = torch.amp.GradScaler("cuda", init_scale=args.fp16_init_scale)
+ 
+     trainer.train()
+ 
+@@ -240,6 +283,7 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
          final_cpu_state_dict = {}
  
          if use_ds:
@@ -183,7 +194,7 @@ index d5f6810..7d1ef71 100644
              logger.info("DeepSpeed ZeRO-3 enabled. Gathering parameters in groups...")
  
              LAYER_CHUNK_SIZE = 4
-@@ -304,9 +342,10 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+@@ -304,9 +348,10 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
  
              unwrapped_model.config.use_cache = True
  
@@ -196,7 +207,7 @@ index d5f6810..7d1ef71 100644
              unwrapped_model.save_pretrained(save_dir, state_dict=final_cpu_state_dict, safe_serialization=True)
              tokenizer.save_pretrained(save_dir)
 diff --git a/utils/kd_utils.py b/utils/kd_utils.py
-index 12aaae6..1e42e1e 100644
+index 12aaae6..2856251 100644
 --- a/utils/kd_utils.py
 +++ b/utils/kd_utils.py
 @@ -12,12 +12,16 @@ class KDTrainer(Trainer):
@@ -218,3 +229,18 @@ index 12aaae6..1e42e1e 100644
          device_type = "cuda" if torch.cuda.is_available() else "cpu"
          with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
              return F.mse_loss(student_logits, teacher_logits)
+@@ -53,9 +57,10 @@ class KDTrainer(Trainer):
+ 
+         loss = kd_loss + l2l_loss
+ 
+-        self.log({
+-            "l2l_loss": l2l_loss.item(),
+-            "kd_loss": kd_loss.item(),
+-        })
++        logs = {"l2l_loss": l2l_loss.item(), "kd_loss": kd_loss.item()}
++        scaler = getattr(self.accelerator, "scaler", None)
++        if scaler is not None:
++            logs["loss_scale"] = scaler.get_scale()      # [littlebit-bench] fp16: watch the dynamic loss scale
++        self.log(logs)
+ 
+         return (loss, outputs) if return_outputs else loss

@@ -10,4 +10,4 @@ tasks="boolq,piqa,hellaswag,winogrande,arc_easy,arc_challenge,openbookqa"
 cd "$UP"
 "$PY" eval.py --model_id "$model" --fp_eval "$([ "$fp" = fp ] && echo True || echo False)" --dtype "$dtype" \
     --ppl_task wikitext2,c4 --zeroshot_task "$tasks" --seqlen 2048 --batch_size "${BS:-8}" \
-    --results_json "$out/eval-$dtype.json" 2>&1 | tee "$out/eval-$dtype.log"
+    --limit "${LIMIT:--1}" --results_json "$out/eval-$dtype.json" 2>&1 | tee "$out/eval-$dtype.log"
