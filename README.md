@@ -203,7 +203,19 @@ LittleBit trains and evaluates in bf16 everywhere. The patch:
       The 1.7B then peaks at 26.9 GB.
     - **Checked against plain AdamW:** same 0.6B probe, same seed (`results/probe-lr1.6e-4-adam8`). The loss
       curves are nearly identical; final perplexity was 3,291 vs 4,008 at that early stage.
-11. **`eval.py --dtype`** picks fp16/fp32 explicitly. `--results_json` writes the numbers to a file. The perplexity
+11. **Makes the 1-bit layer itself safe from fp16 overflow** (`LittleBitLinear._compute_forward_fp16`).
+    - **The failure:** the Qwen3-1.7B run trained well for ~1,770 steps (perplexity 54.6 at step 1,500), then every
+      batch came back NaN, and the loss scale halved itself to zero.
+    - **The weights were fine:** the checkpoints had no NaN, and in fp32 the model scored a healthy loss of 3.63.
+    - **The cause:** in fp16, the last layer's `mlp.down_proj` overflowed (`scripts/find_overflow.py`). Each binary
+      matmul adds up to 6,144 terms *before* the learned scales shrink the result. Those running sums passed 65,504,
+      even though the layer's output (31k) would have fit.
+    - **The fix:** each matmul input is divided by the power of two that makes overflow impossible
+      (|sum| ≤ terms × max|input|), and the output is multiplied back. Powers of two are exact.
+    - **The results:** the broken checkpoint scores 3.6323 in fp16 against 3.6324 in fp32. Night 1's 0.6B model is
+      unchanged: 37.6377 vs 37.6381 on WikiText-2.
+    - **The scope:** it only runs when the matmul would be fp16, so upstream's bf16/fp32 paths are untouched.
+12. **`eval.py --dtype`** picks fp16/fp32 explicitly. `--results_json` writes the numbers to a file. The perplexity
    loss is computed in fp32.
 
 The defaults are unchanged. Without the new flags, upstream's bf16 behaviour is the same.

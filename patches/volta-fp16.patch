@@ -327,7 +327,7 @@ index d5f6810..174233a 100644
              unwrapped_model.save_pretrained(save_dir, state_dict=final_cpu_state_dict, safe_serialization=True)
              tokenizer.save_pretrained(save_dir)
 diff --git a/quantization/modules/littlebit.py b/quantization/modules/littlebit.py
-index 43ce9d2..8961200 100644
+index 43ce9d2..939ad5d 100644
 --- a/quantization/modules/littlebit.py
 +++ b/quantization/modules/littlebit.py
 @@ -6,6 +6,10 @@ from quantization.utils.binary_packer import binary_packer
@@ -341,7 +341,43 @@ index 43ce9d2..8961200 100644
      def __quant_convert__(
          self,
          do_train: bool,
-@@ -368,6 +372,8 @@ class LittleBitLinear(nn.Module):
+@@ -121,9 +125,35 @@ class LittleBitLinear(nn.Module):
+         Uq = self.quantize(U.to(x.dtype))
+         v1u2 = v1 * u2
+ 
++        if x.dtype == torch.float16 or (torch.is_autocast_enabled("cuda") and
++                                        torch.get_autocast_dtype("cuda") == torch.float16):
++            return self._compute_forward_fp16(x, Vq, Uq, v2, v1u2, u1)
++
+         # ((((x * v2) @ Vq^T) * (v1 * u2)) @ Uq^T) * u1
+         return ((((x * v2) @ Vq.t()) * v1u2) @ Uq.t()) * u1
+ 
++    @staticmethod
++    def _pow2_down(t, limit):
++        """The smallest power of two s >= 1 with max|t| / s <= limit, as a tensor (no host sync)."""
++        m = t.detach().abs().amax().float().clamp_min(1e-30)
++        return torch.exp2(torch.ceil(torch.log2(m / limit))).clamp_min(1.0)
++
++    def _compute_forward_fp16(self, x, Vq, Uq, v2, v1u2, u1):
++        """[littlebit-bench] The same product, safe from fp16 overflow (Volta has no bf16).
++
++        Each binary matmul sums up to in_features (then split_dim) terms before the scales shrink the result, and
++        those running sums overflow fp16's 65504 even when the layer's output would fit: Qwen3-1.7B's last
++        mlp.down_proj did after ~1,770 steps (fp32: loss 3.63; fp16: NaN, every batch from then on). So each matmul
++        input is divided by a power of two that makes overflow impossible (|sum| <= terms * max|input|), and the
++        output is multiplied back. Powers of two are exact in floating point."""
++        a = x.float() * v2.float()
++        s1 = self._pow2_down(a, 65504.0 / Vq.shape[1])
++        h = (a / s1).half() @ Vq.half().t()                      # = (x * v2) @ Vq^T / s1, cannot overflow
++        g = h.float() * v1u2.float()
++        s2 = self._pow2_down(g, 65504.0 / Uq.shape[1])
++        y = ((g / s2).half() @ Uq.half().t()).float() * (u1.float() * (s1 * s2))
++        return y.half() if x.dtype == torch.float16 else y
++
+     def quantize(self, x):
+         # If weights are already binarized, return them directly
+         if self._binarized:
+@@ -368,6 +398,8 @@ class LittleBitLinear(nn.Module):
  
      def state_dict(self, *args, **kwargs):
          """Always return the state_dict in a binarized & packed format."""
