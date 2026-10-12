@@ -6,6 +6,7 @@ set -euo pipefail
 source "$(dirname "$0")/env.sh"
 name=$1; model=$2; bits=$3; shift 3
 out=$RUNS/$name; mkdir -p "$out"
+echo "=== $(date '+%F %T') train.sh $name $model $bits $*" >> "$out/train.log"
 cd "$UP"
 "$PY" main.py --model_id "$model" --dataset c4_wiki --data_root "$LB_ROOT/data" \
     --save_dir "$RUNS" --f_name "$name" \
@@ -14,4 +15,4 @@ cd "$UP"
     --quant_func SmoothSign --quant_mod LittleBitLinear --residual True --eff_bit "$bits" --kv_factor 1.0 \
     --min_split_dim 8 --l2l_loss_scale 10.0 --use_itq "${ITQ:-True}" \
     --precision "${PREC:-fp16}" --teacher_dtype "${TEACHER:-auto}" --max_train_samples "${SAMPLES:--1}" \
-    --load_direct_to_gpu "${DIRECT:-False}" "$@" 2>&1 | tee "$out/train.log"
+    --load_direct_to_gpu "${DIRECT:-False}" "$@" 2>&1 | tee -a "$out/train.log"    # -a: a resumed run adds to its log

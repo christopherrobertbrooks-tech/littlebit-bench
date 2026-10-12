@@ -1,0 +1,42 @@
+=== 2026-10-12 08:47:45 train.sh test-resume-a Qwen/Qwen3-0.6B 1.0 --save_every 4 --save_total_limit 3 --fp16_init_scale 0.125
+2026-10-12 08:47:47,508 - __main__ - INFO - Loading tokenizer...
+2026-10-12 08:47:47,862 - __main__ - INFO - Preparing training data (c4_wiki)...
+2026-10-12 08:47:48,039 - utils.datautils - INFO - Attempting to load dataset from disk at '/mnt/steam/littlebit/data/c4_wiki/16eeff7'
+2026-10-12 08:47:48,686 - utils.datautils - INFO - Successfully loaded dataset from disk at '/mnt/steam/littlebit/data/c4_wiki/16eeff7'
+2026-10-12 08:47:48,698 - __main__ - INFO - Training on a random subset of 32 samples
+2026-10-12 08:47:48,698 - __main__ - INFO - Loading student model...
+2026-10-12 08:53:34,975 - __main__ - INFO - Loading teacher model...
+2026-10-12 08:53:35,861 - __main__ - INFO - Setting trainer...
+Loading Fast Tokenizer for Qwen/Qwen3-0.6B...
+INFO: Applying quantization patch...
+trainable params: 412613504 || all params: 568195968 || trainable%: 72.61816824437585
+  0%|          | 0/8 [00:00<?, ?it/s]                                       0%|          | 0/8 [00:00<?, ?it/s]                                       0%|          | 0/8 [00:02<?, ?it/s] 12%|█▎        | 1/8 [00:03<00:24,  3.49s/it]                                              12%|█▎        | 1/8 [00:03<00:24,  3.49s/it]                                              12%|█▎        | 1/8 [00:04<00:24,  3.49s/it]                                              12%|█▎        | 1/8 [00:05<00:24,  3.49s/it] 25%|██▌       | 2/8 [00:06<00:20,  3.39s/it]                                              25%|██▌       | 2/8 [00:06<00:20,  3.39s/it]                                              25%|██▌       | 2/8 [00:07<00:20,  3.39s/it]                                              25%|██▌       | 2/8 [00:09<00:20,  3.39s/it] 38%|███▊      | 3/8 [00:10<00:16,  3.37s/it]                                              38%|███▊      | 3/8 [00:10<00:16,  3.37s/it]                                              38%|███▊      | 3/8 [00:10<00:16,  3.37s/it]                                              38%|███▊      | 3/8 [00:12<00:16,  3.37s/it] 50%|█████     | 4/8 [00:13<00:13,  3.36s/it]                                              50%|█████     | 4/8 [00:13<00:13,  3.36s/it]                                              50%|█████     | 4/8 [00:27<00:13,  3.36s/it]                                              50%|█████     | 4/8 [00:29<00:13,  3.36s/it] 62%|██████▎   | 5/8 [00:30<00:24,  8.19s/it]                                              62%|██████▎   | 5/8 [00:30<00:24,  8.19s/it]                                              62%|██████▎   | 5/8 [00:30<00:24,  8.19s/it]                                              62%|██████▎   | 5/8 [00:32<00:24,  8.19s/it] 75%|███████▌  | 6/8 [00:33<00:13,  6.54s/it]                                              75%|███████▌  | 6/8 [00:33<00:13,  6.54s/it]                                              75%|███████▌  | 6/8 [00:34<00:13,  6.54s/it]                                              75%|███████▌  | 6/8 [00:35<00:13,  6.54s/it] 88%|████████▊ | 7/8 [00:36<00:05,  5.49s/it]                                              88%|████████▊ | 7/8 [00:36<00:05,  5.49s/it]                                              88%|████████▊ | 7/8 [00:37<00:05,  5.49s/it]                                              88%|████████▊ | 7/8 [00:39<00:05,  5.49s/it]100%|██████████| 8/8 [00:40<00:00,  4.81s/it]                                             100%|██████████| 8/8 [00:40<00:00,  4.81s/it]                                             100%|██████████| 8/8 [00:50<00:00,  4.81s/it]100%|██████████| 8/8 [00:50<00:00,  6.36s/it]
+2026-10-12 08:54:26,960 - __main__ - INFO - Starting artifact saving process (Grouped Chunk Strategy)...
+2026-10-12 08:54:28,674 - __main__ - INFO - Saving to disk...
+2026-10-12 08:54:28,674 - __main__ - INFO - Saved LittleBit config to /mnt/steam/littlebit/runs/test-resume-a/littlebit_config.json
+2026-10-12 08:54:29,126 - __main__ - INFO - Artifacts saved successfully.
+{'l2l_loss': 21973.751953125, 'kd_loss': 28383.2734375, 'loss_scale': 0.125, 'epoch': 0}
+{'l2l_loss': 22722.87109375, 'kd_loss': 28545.09765625, 'loss_scale': 0.125, 'epoch': 0}
+{'loss': 101624.9922, 'grad_norm': 5584169.0, 'learning_rate': 0.0, 'epoch': 0.12}
+{'l2l_loss': 23755.119140625, 'kd_loss': 28320.515625, 'loss_scale': 0.125, 'epoch': 0.12}
+{'l2l_loss': 22302.341796875, 'kd_loss': 29638.11328125, 'loss_scale': 0.125, 'epoch': 0.12}
+{'loss': 104016.0859, 'grad_norm': 4621165.5, 'learning_rate': 4e-05, 'epoch': 0.25}
+{'l2l_loss': 23160.98046875, 'kd_loss': 23144.234375, 'loss_scale': 0.125, 'epoch': 0.25}
+{'l2l_loss': 22162.2578125, 'kd_loss': 27161.2109375, 'loss_scale': 0.125, 'epoch': 0.25}
+{'loss': 95628.6875, 'grad_norm': 6943023.5, 'learning_rate': 3.801937735804838e-05, 'epoch': 0.38}
+{'l2l_loss': 21068.720703125, 'kd_loss': 24040.078125, 'loss_scale': 0.125, 'epoch': 0.38}
+{'l2l_loss': 20370.873046875, 'kd_loss': 25551.51171875, 'loss_scale': 0.125, 'epoch': 0.38}
+{'loss': 91031.1797, 'grad_norm': 5668228.0, 'learning_rate': 3.246979603717467e-05, 'epoch': 0.5}
+{'l2l_loss': 20169.888671875, 'kd_loss': 20781.8359375, 'loss_scale': 0.125, 'epoch': 0.5}
+{'l2l_loss': 20206.6171875, 'kd_loss': 21290.982421875, 'loss_scale': 0.125, 'epoch': 0.5}
+{'loss': 82449.3281, 'grad_norm': 3825542.25, 'learning_rate': 2.445041867912629e-05, 'epoch': 0.62}
+{'l2l_loss': 19761.029296875, 'kd_loss': 23041.392578125, 'loss_scale': 0.125, 'epoch': 0.62}
+{'l2l_loss': 18680.81640625, 'kd_loss': 19886.494140625, 'loss_scale': 0.125, 'epoch': 0.62}
+{'loss': 81369.7344, 'grad_norm': 3384587.5, 'learning_rate': 1.5549581320873715e-05, 'epoch': 0.75}
+{'l2l_loss': 20389.728515625, 'kd_loss': 20156.58984375, 'loss_scale': 0.125, 'epoch': 0.75}
+{'l2l_loss': 18553.728515625, 'kd_loss': 19415.1328125, 'loss_scale': 0.125, 'epoch': 0.75}
+{'loss': 78515.1797, 'grad_norm': 2092057.75, 'learning_rate': 7.530203962825331e-06, 'epoch': 0.88}
+{'l2l_loss': 18820.541015625, 'kd_loss': 19785.3828125, 'loss_scale': 0.125, 'epoch': 0.88}
+{'l2l_loss': 20099.03125, 'kd_loss': 19923.4609375, 'loss_scale': 0.125, 'epoch': 0.88}
+{'loss': 78628.4141, 'grad_norm': 3436034.5, 'learning_rate': 1.9806226419516195e-06, 'epoch': 1.0}
+{'train_runtime': 50.9162, 'train_samples_per_second': 0.628, 'train_steps_per_second': 0.157, 'train_loss': 89157.9501953125, 'epoch': 1.0}

@@ -1,0 +1,31 @@
+=== 2026-10-12 08:54:31 train.sh test-resume-b Qwen/Qwen3-0.6B 1.0 --save_every 4 --save_total_limit 3 --fp16_init_scale 0.125 --resume_from /mnt/steam/littlebit/runs/test-resume-a/checkpoint-4
+2026-10-12 08:54:34,715 - __main__ - INFO - Loading tokenizer...
+2026-10-12 08:54:35,042 - __main__ - INFO - Preparing training data (c4_wiki)...
+2026-10-12 08:54:35,231 - utils.datautils - INFO - Attempting to load dataset from disk at '/mnt/steam/littlebit/data/c4_wiki/16eeff7'
+2026-10-12 08:54:35,905 - utils.datautils - INFO - Successfully loaded dataset from disk at '/mnt/steam/littlebit/data/c4_wiki/16eeff7'
+2026-10-12 08:54:35,918 - __main__ - INFO - Training on a random subset of 32 samples
+2026-10-12 08:54:35,918 - __main__ - INFO - Loading student model...
+2026-10-12 09:00:21,632 - __main__ - INFO - Loading teacher model...
+2026-10-12 09:00:22,529 - __main__ - INFO - Setting trainer...
+There were missing keys in the checkpoint model loaded: ['lm_head.weight'].
+Loading Fast Tokenizer for Qwen/Qwen3-0.6B...
+INFO: Applying quantization patch...
+trainable params: 412613504 || all params: 568195968 || trainable%: 72.61816824437585
+  0%|          | 0/8 [00:00<?, ?it/s]                                       0%|          | 0/8 [00:00<?, ?it/s]                                       0%|          | 0/8 [00:02<?, ?it/s] 62%|██████▎   | 5/8 [00:03<00:02,  1.42it/s]                                              62%|██████▎   | 5/8 [00:03<00:02,  1.42it/s]                                              62%|██████▎   | 5/8 [00:04<00:02,  1.42it/s]                                              62%|██████▎   | 5/8 [00:05<00:02,  1.42it/s] 75%|███████▌  | 6/8 [00:06<00:02,  1.28s/it]                                              75%|███████▌  | 6/8 [00:06<00:02,  1.28s/it]                                              75%|███████▌  | 6/8 [00:07<00:02,  1.28s/it]                                              75%|███████▌  | 6/8 [00:09<00:02,  1.28s/it] 88%|████████▊ | 7/8 [00:10<00:01,  1.78s/it]                                              88%|████████▊ | 7/8 [00:10<00:01,  1.78s/it]                                              88%|████████▊ | 7/8 [00:10<00:01,  1.78s/it]                                              88%|████████▊ | 7/8 [00:12<00:01,  1.78s/it]100%|██████████| 8/8 [00:13<00:00,  2.18s/it]                                             100%|██████████| 8/8 [00:13<00:00,  2.18s/it]                                             100%|██████████| 8/8 [00:21<00:00,  2.18s/it]100%|██████████| 8/8 [00:21<00:00,  2.68s/it]
+2026-10-12 09:00:56,664 - __main__ - INFO - Starting artifact saving process (Grouped Chunk Strategy)...
+2026-10-12 09:00:57,672 - __main__ - INFO - Saving to disk...
+2026-10-12 09:00:57,673 - __main__ - INFO - Saved LittleBit config to /mnt/steam/littlebit/runs/test-resume-b/littlebit_config.json
+2026-10-12 09:00:58,771 - __main__ - INFO - Artifacts saved successfully.
+{'l2l_loss': 20169.888671875, 'kd_loss': 20781.8359375, 'loss_scale': 0.125, 'epoch': 0.5}
+{'l2l_loss': 20206.6171875, 'kd_loss': 21290.982421875, 'loss_scale': 0.125, 'epoch': 0.5}
+{'loss': 82449.3281, 'grad_norm': 3823907.0, 'learning_rate': 2.445041867912629e-05, 'epoch': 0.62}
+{'l2l_loss': 19745.36328125, 'kd_loss': 23074.90234375, 'loss_scale': 0.125, 'epoch': 0.62}
+{'l2l_loss': 18676.51953125, 'kd_loss': 19880.759765625, 'loss_scale': 0.125, 'epoch': 0.62}
+{'loss': 81377.5469, 'grad_norm': 3427726.75, 'learning_rate': 1.5549581320873715e-05, 'epoch': 0.75}
+{'l2l_loss': 20363.751953125, 'kd_loss': 20137.484375, 'loss_scale': 0.125, 'epoch': 0.75}
+{'l2l_loss': 18557.296875, 'kd_loss': 19403.705078125, 'loss_scale': 0.125, 'epoch': 0.75}
+{'loss': 78462.2344, 'grad_norm': 2132876.25, 'learning_rate': 7.530203962825331e-06, 'epoch': 0.88}
+{'l2l_loss': 18812.4140625, 'kd_loss': 19775.46484375, 'loss_scale': 0.125, 'epoch': 0.88}
+{'l2l_loss': 20112.380859375, 'kd_loss': 19938.28125, 'loss_scale': 0.125, 'epoch': 0.88}
+{'loss': 78638.5469, 'grad_norm': 3028985.5, 'learning_rate': 1.9806226419516195e-06, 'epoch': 1.0}
+{'train_runtime': 21.4207, 'train_samples_per_second': 1.494, 'train_steps_per_second': 0.373, 'train_loss': 40115.95703125, 'epoch': 1.0}

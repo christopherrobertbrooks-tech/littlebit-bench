@@ -50,10 +50,10 @@ index 446b1ed..b78500a 100644
      # Note: Default values are set to None.
      # This allows `LittleBitModel` to load parameters from config files natively,
 diff --git a/main.py b/main.py
-index d5f6810..4b198d2 100644
+index d5f6810..f9a99ac 100644
 --- a/main.py
 +++ b/main.py
-@@ -6,14 +6,12 @@ import json
+@@ -6,16 +6,15 @@ import json
  import os
  from pathlib import Path
  
@@ -68,8 +68,11 @@ index d5f6810..4b198d2 100644
 +from transformers import AutoModelForCausalLM, AutoTokenizer, TrainerCallback, TrainingArguments, set_seed
  
  from quantization.utils import apply_littlebit_patch
++from quantization.modules import LittleBitLinear          # after quantization.utils: importing it first is circular
  from utils.datautils import prepare_dataset, load_tokenizer
-@@ -37,6 +35,10 @@ def get_device_config():
+ from utils.kd_utils import KDTrainer
+ from utils.misc import setup_logger
+@@ -37,6 +36,10 @@ def get_device_config():
              device_map = {'': local_rank}
          except ValueError:
              pass
@@ -80,7 +83,7 @@ index d5f6810..4b198d2 100644
  
      return len(gpus), device_map
  
-@@ -71,7 +73,7 @@ def get_args():
+@@ -71,7 +74,7 @@ def get_args():
      parser.add_argument("--ds_config_path", type=str, default=None)
      parser.add_argument("--exp_name", type=str, default="LittleBit")
      parser.add_argument("--run_name", type=str, default="my_run")
@@ -89,7 +92,7 @@ index d5f6810..4b198d2 100644
      parser.add_argument("--quant_func", type=str, default="STEBinary")
      parser.add_argument("--quant_mod", type=str, default="LittleBitLinear")
  
-@@ -84,6 +86,18 @@ def get_args():
+@@ -84,6 +87,27 @@ def get_args():
      parser.add_argument("--use_itq", type=str2bool, default=False)
      parser.add_argument("--itq_n_iter", type=int, default=50)
  
@@ -100,6 +103,15 @@ index d5f6810..4b198d2 100644
 +    parser.add_argument("--max_train_samples", type=int, default=-1, help="train on a seeded random subset")
 +    parser.add_argument("--eval_every", type=int, default=0,
 +                        help="every N optimizer steps, log WikiText-2 perplexity (same windows as eval.py)")
++    parser.add_argument("--save_every", type=int, default=0,
++                        help="write a resumable checkpoint (latent factors + optimizer) every N steps and at the end")
++    parser.add_argument("--save_total_limit", type=int, default=2)
++    parser.add_argument("--resume_from", type=str, default=None,
++                        help="a checkpoint-N directory, or 'latest' for the newest one in this run's save_dir")
++    parser.add_argument("--warm_start_from", type=str, default=None,
++                        help="start from a finished (packed) LittleBit model: its signs and scales")
++    parser.add_argument("--warm_mag", type=float, default=0.03,
++                        help="latent magnitude given to the warm-started signs (SmoothSign only moves |x| < ~0.05)")
 +    parser.add_argument("--fp16_init_scale", type=float, default=1.0,
 +                        help="first fp16 loss scale (LittleBit's losses are ~1e5; torch's 2^16 overflows)")
 +    parser.add_argument("--load_direct_to_gpu", type=str2bool, default=False,
@@ -108,7 +120,7 @@ index d5f6810..4b198d2 100644
      args = parser.parse_args()
  
      return args
-@@ -105,7 +119,8 @@ def get_training_arguments(args, save_dir):
+@@ -105,10 +129,12 @@ def get_training_arguments(args, save_dir):
          gradient_accumulation_steps=args.gradient_accumulation_steps,
          warmup_ratio=args.warmup_ratio,
          num_train_epochs=args.num_train_epochs,
@@ -116,9 +128,15 @@ index d5f6810..4b198d2 100644
 +        bf16=args.precision == "bf16",
 +        fp16=args.precision == "fp16",
          logging_steps=1,
-         save_strategy="no",
-         save_steps=10000,
-@@ -125,7 +140,7 @@ def load_student_model(args, device_map, torch_dtype):
+-        save_strategy="no",
+-        save_steps=10000,
++        save_strategy="steps" if args.save_every > 0 else "no",
++        save_steps=args.save_every if args.save_every > 0 else 10000,
++        save_total_limit=args.save_total_limit,
+         output_dir=save_dir,
+         learning_rate=args.lr,
+         lr_scheduler_type="cosine",
+@@ -125,7 +151,7 @@ def load_student_model(args, device_map, torch_dtype):
      model = AutoModelForCausalLM.from_pretrained(
          args.model_id,
          torch_dtype=torch_dtype,
@@ -127,7 +145,7 @@ index d5f6810..4b198d2 100644
          low_cpu_mem_usage=True,
          trust_remote_code=True,
      )
-@@ -138,11 +153,30 @@ def load_student_model(args, device_map, torch_dtype):
+@@ -138,11 +164,62 @@ def load_student_model(args, device_map, torch_dtype):
      if device_map:
          model.to(device_map if isinstance(device_map, (str, torch.device)) else list(device_map.values())[0])
  
@@ -137,10 +155,42 @@ index d5f6810..4b198d2 100644
 +            if param.requires_grad and param.dtype != torch.float32:
 +                param.data = param.data.float()
 +
++    if args.warm_start_from:
++        warm_start(model, args.warm_start_from, args.warm_mag)
++
      print_trainable_parameters(model)
      return model
  
  
++def warm_start(model, model_dir, mag):
++    """[littlebit-bench] Continue from a finished LittleBit model. A finished model keeps only the signs of its latent
++    factors (bit-packed) and its scales; the latent values themselves are gone. So each factor restarts as
++    sign * mag. The forward pass uses only signs and scales, so step 0 reproduces the finished model exactly."""
++    from safetensors.torch import load_file
++    from quantization.modules import LittleBitLinear
++    from quantization.utils.binary_packer import binary_unpacker
++
++    sd = {}
++    for f in sorted(Path(model_dir).glob("*.safetensors")):
++        sd.update(load_file(str(f)))
++    params = dict(model.named_parameters())
++    n_signs = n_other = 0
++    for name, mod in model.named_modules():
++        if not isinstance(mod, LittleBitLinear):
++            continue
++        for p in ("U", "V", "U_R", "V_R"):
++            if f"{name}.{p}_packed" in sd:
++                shape = tuple(int(x) for x in sd[f"{name}.{p}_shape"])
++                signs = binary_unpacker(sd[f"{name}.{p}_packed"], shape)
++                getattr(mod, p).data.copy_(signs.to(getattr(mod, p).device, torch.float32) * mag)
++                n_signs += 1
++    for name, t in sd.items():
++        if name in params and params[name].requires_grad:
++            params[name].data.copy_(t.to(params[name].device, params[name].dtype))
++            n_other += 1
++    print(f"INFO: warm start from {model_dir}: {n_signs} sign factors (latent magnitude {mag}), {n_other} other tensors")
++
++
  def load_teacher_model(args, num_gpus, torch_dtype, config_path="configs/zero3_inference.json"):
 +    if args.ds_config_path is None:
 +        # [littlebit-bench] single GPU: a plain frozen teacher on the GPU, no DeepSpeed needed.
@@ -158,7 +208,7 @@ index d5f6810..4b198d2 100644
      with open(config_path, 'r') as f:
          config = json.load(f)
  
-@@ -166,6 +200,47 @@ def load_teacher_model(args, num_gpus, torch_dtype, config_path="configs/zero3_i
+@@ -166,6 +243,47 @@ def load_teacher_model(args, num_gpus, torch_dtype, config_path="configs/zero3_i
      return teacher_model
  
  
@@ -206,7 +256,7 @@ index d5f6810..4b198d2 100644
  def setup_trainer(model, teacher_model, tokenizer, datasets, training_args, args):
      trainer = KDTrainer(
          model=model,
-@@ -208,17 +283,30 @@ def main():
+@@ -208,20 +326,37 @@ def main():
  
      logger.info(f"Preparing training data ({args.dataset})...")
      datasets = prepare_dataset(args, tokenizer)
@@ -230,16 +280,26 @@ index d5f6810..4b198d2 100644
  
      logger.info(f"Setting trainer...")
      trainer = setup_trainer(model, teacher_model, tokenizer, datasets, training_args, args)
+-
+-    trainer.train()
+-
++    if args.save_every > 0 or args.resume_from:
++        LittleBitLinear.pack_on_save = False
 +    if args.eval_every > 0:
 +        trainer.add_callback(PerplexityCallback(tokenizer, args.eval_every, os.path.join(save_dir, "ppl_curve.jsonl")))
 +    if args.precision == "fp16" and getattr(trainer.accelerator, "scaler", None) is not None:
 +        # [littlebit-bench] the KL is summed over every token and the layer MSE is x10, so the loss starts near 1e5 and
 +        # fp16 gradients overflow at torch's default scale of 2^16: ~19 steps get skipped while it backs off.
 +        trainer.accelerator.scaler = torch.amp.GradScaler("cuda", init_scale=args.fp16_init_scale)
++
++    resume = True if args.resume_from == "latest" else args.resume_from
++    trainer.train(resume_from_checkpoint=resume)
++
++    LittleBitLinear.pack_on_save = True
+     save_artifacts(trainer, model, tokenizer, save_dir, args)
  
-     trainer.train()
  
-@@ -240,6 +328,7 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+@@ -240,6 +375,7 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
          final_cpu_state_dict = {}
  
          if use_ds:
@@ -247,7 +307,7 @@ index d5f6810..4b198d2 100644
              logger.info("DeepSpeed ZeRO-3 enabled. Gathering parameters in groups...")
  
              LAYER_CHUNK_SIZE = 4
-@@ -304,9 +393,10 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+@@ -304,9 +440,10 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
  
              unwrapped_model.config.use_cache = True
  
@@ -259,6 +319,30 @@ index d5f6810..4b198d2 100644
  
              unwrapped_model.save_pretrained(save_dir, state_dict=final_cpu_state_dict, safe_serialization=True)
              tokenizer.save_pretrained(save_dir)
+diff --git a/quantization/modules/littlebit.py b/quantization/modules/littlebit.py
+index 43ce9d2..8961200 100644
+--- a/quantization/modules/littlebit.py
++++ b/quantization/modules/littlebit.py
+@@ -6,6 +6,10 @@ from quantization.utils.binary_packer import binary_packer
+ 
+ 
+ class LittleBitLinear(nn.Module):
++    # [littlebit-bench] False while writing resumable training checkpoints: they must keep the latent factors (the
++    # values SmoothSign trains), not just their signs.
++    pack_on_save = True
++
+     def __quant_convert__(
+         self,
+         do_train: bool,
+@@ -368,6 +372,8 @@ class LittleBitLinear(nn.Module):
+ 
+     def state_dict(self, *args, **kwargs):
+         """Always return the state_dict in a binarized & packed format."""
++        if not LittleBitLinear.pack_on_save:
++            return super().state_dict(*args, **kwargs)
+         prefix = kwargs.get('prefix', '')
+         state = super().state_dict(*args, **kwargs)
+ 
 diff --git a/utils/kd_utils.py b/utils/kd_utils.py
 index 12aaae6..2856251 100644
 --- a/utils/kd_utils.py

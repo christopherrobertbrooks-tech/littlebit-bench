@@ -166,7 +166,17 @@ LittleBit trains and evaluates in bf16 everywhere. The patch:
    always clipped to 1.0, so the loss scale does not change the updates.
 7. **Adds `--eval_every N`:** a learning curve. Every N steps it logs WikiText-2 perplexity on the same windows as
    `eval.py`.
-8. **`eval.py --dtype`** picks fp16/fp32 explicitly. `--results_json` writes the numbers to a file. The perplexity
+8. **Adds resumable checkpoints: `--save_every N` and `--resume_from <checkpoint-N | latest>`.**
+   - A finished LittleBit model keeps only the *signs* of its latent factors, bit-packed. The latent values are what
+     SmoothSign trains, so a training checkpoint must keep them, along with the optimizer state. Checkpoints therefore
+     skip the packing (`LittleBitLinear.pack_on_save`). The final model is still packed.
+   - A checkpoint is 5.0 GB for Qwen3-0.6B.
+   - `scripts/test_resume.sh` runs 8 steps, then resumes a second run from step 4. Steps 5-8 match the uninterrupted
+     run: step 5 is identical, steps 6-8 are within 0.1% (`results/test-resume/`). The test fails without the patch.
+9. **Adds `--warm_start_from <finished model>`:** continues from a packed model, using its signs and scales. The
+   latent values are lost, so each one restarts at ±`--warm_mag` (0.03). SmoothSign's gradient only reaches latents
+   with |x| below ~0.05. The forward pass uses only signs and scales, so step 0 reproduces the finished model.
+10. **`eval.py --dtype`** picks fp16/fp32 explicitly. `--results_json` writes the numbers to a file. The perplexity
    loss is computed in fp32.
 
 The defaults are unchanged. Without the new flags, upstream's bf16 behaviour is the same.
