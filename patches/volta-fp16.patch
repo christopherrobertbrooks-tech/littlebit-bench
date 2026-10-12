@@ -1,0 +1,220 @@
+diff --git a/eval.py b/eval.py
+index 446b1ed..b78500a 100644
+--- a/eval.py
++++ b/eval.py
+@@ -76,7 +76,7 @@ def evaluate_model(
+                 shift_labels = batch[:, 1:].contiguous()
+ 
+                 loss_fct = nn.CrossEntropyLoss()
+-                loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
++                loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)).float(), shift_labels.view(-1))
+                 neg_log_likelihood = loss.float() * (seqlen - 1)
+                 nlls.append(neg_log_likelihood)
+ 
+@@ -123,6 +123,9 @@ def evaluate_model(
+ 
+ def main(args):
+     torch_dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float32
++    if args.dtype != "auto":
++        # [littlebit-bench] torch reports bf16 "supported" on Volta (emulated, ~9x slower): pick explicitly there
++        torch_dtype = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}[args.dtype]
+ 
+     model = None
+ 
+@@ -185,7 +188,7 @@ def main(args):
+             print(f"Model moved to {target_device}")
+ 
+     # --- Run Evaluation ---
+-    _ = evaluate_model(
++    results = evaluate_model(
+         model=model,
+         tokenizer=tokenizer,
+         tasks_str=args.zeroshot_task,
+@@ -196,6 +199,9 @@ def main(args):
+         accelerator=accelerator,
+         seqlen=args.seqlen,
+     )
++    if args.results_json:
++        with open(args.results_json, "w") as f:
++            json.dump({"args": vars(args), "dtype": str(torch_dtype), "results": results}, f, indent=2, default=str)
+ 
+ 
+ if __name__ == "__main__":
+@@ -204,6 +210,8 @@ if __name__ == "__main__":
+ 
+     parser.add_argument("--model_id", type=str, default="meta-llama/Llama-2-7b-hf")
+     parser.add_argument("--fp_eval", type=str2bool, default=False)
++    parser.add_argument("--dtype", type=str, default="auto", choices=["auto", "bf16", "fp16", "fp32"])
++    parser.add_argument("--results_json", type=str, default=None, help="also write the results here")
+ 
+     # Note: Default values are set to None.
+     # This allows `LittleBitModel` to load parameters from config files natively,
+diff --git a/main.py b/main.py
+index d5f6810..7d1ef71 100644
+--- a/main.py
++++ b/main.py
+@@ -6,14 +6,12 @@ import json
+ import os
+ from pathlib import Path
+ 
+-import deepspeed
+ import GPUtil
+ import torch
+ import torch.nn as nn
+ from datasets import load_from_disk
+ from transformers import default_data_collator
+ from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, set_seed
+-from transformers.integrations.deepspeed import HfDeepSpeedConfig
+ 
+ from quantization.utils import apply_littlebit_patch
+ from utils.datautils import prepare_dataset, load_tokenizer
+@@ -37,6 +35,10 @@ def get_device_config():
+             device_map = {'': local_rank}
+         except ValueError:
+             pass
++    elif torch.cuda.device_count() == 1:
++        # [littlebit-bench] plain single-GPU run (no launcher, so no LOCAL_RANK): "auto" is not a device and
++        # model.to("auto") raises. GPUtil also counts GPUs hidden by CUDA_VISIBLE_DEVICES; torch does not.
++        device_map = "cuda"
+ 
+     return len(gpus), device_map
+ 
+@@ -71,7 +73,7 @@ def get_args():
+     parser.add_argument("--ds_config_path", type=str, default=None)
+     parser.add_argument("--exp_name", type=str, default="LittleBit")
+     parser.add_argument("--run_name", type=str, default="my_run")
+-    parser.add_argument("--report", nargs="+", default=["wandb"], choices=["wandb", "tensorboard"])
++    parser.add_argument("--report", nargs="+", default=["wandb"], choices=["wandb", "tensorboard", "none"])
+     parser.add_argument("--quant_func", type=str, default="STEBinary")
+     parser.add_argument("--quant_mod", type=str, default="LittleBitLinear")
+ 
+@@ -84,6 +86,14 @@ def get_args():
+     parser.add_argument("--use_itq", type=str2bool, default=False)
+     parser.add_argument("--itq_n_iter", type=int, default=50)
+ 
++    # [littlebit-bench] Volta (V100, sm_70) has no bf16 hardware: bf16 there is emulated and ~9x slower.
++    # fp16 = fp16 autocast + loss scaling, with every trainable tensor kept in fp32.
++    parser.add_argument("--precision", type=str, default="bf16", choices=["bf16", "fp16"])
++    parser.add_argument("--teacher_dtype", type=str, default="auto", choices=["auto", "bf16", "fp16", "fp32"])
++    parser.add_argument("--max_train_samples", type=int, default=-1, help="train on a seeded random subset")
++    parser.add_argument("--load_direct_to_gpu", type=str2bool, default=False,
++                        help="build the student on the GPU (for hosts with less RAM than the model)")
++
+     args = parser.parse_args()
+ 
+     return args
+@@ -105,7 +115,8 @@ def get_training_arguments(args, save_dir):
+         gradient_accumulation_steps=args.gradient_accumulation_steps,
+         warmup_ratio=args.warmup_ratio,
+         num_train_epochs=args.num_train_epochs,
+-        bf16=True,
++        bf16=args.precision == "bf16",
++        fp16=args.precision == "fp16",
+         logging_steps=1,
+         save_strategy="no",
+         save_steps=10000,
+@@ -125,7 +136,7 @@ def load_student_model(args, device_map, torch_dtype):
+     model = AutoModelForCausalLM.from_pretrained(
+         args.model_id,
+         torch_dtype=torch_dtype,
+-        device_map="cpu",
++        device_map="cuda" if args.load_direct_to_gpu else "cpu",
+         low_cpu_mem_usage=True,
+         trust_remote_code=True,
+     )
+@@ -138,11 +149,30 @@ def load_student_model(args, device_map, torch_dtype):
+     if device_map:
+         model.to(device_map if isinstance(device_map, (str, torch.device)) else list(device_map.values())[0])
+ 
++    if args.precision == "fp16":
++        # [littlebit-bench] fp16 loss scaling needs fp32 master weights: keep every trainable tensor in fp32.
++        for param in model.parameters():
++            if param.requires_grad and param.dtype != torch.float32:
++                param.data = param.data.float()
++
+     print_trainable_parameters(model)
+     return model
+ 
+ 
+ def load_teacher_model(args, num_gpus, torch_dtype, config_path="configs/zero3_inference.json"):
++    if args.ds_config_path is None:
++        # [littlebit-bench] single GPU: a plain frozen teacher on the GPU, no DeepSpeed needed.
++        teacher_model = AutoModelForCausalLM.from_pretrained(args.model_id, torch_dtype=torch_dtype,
++                                                             device_map={"": 0}, low_cpu_mem_usage=True)
++        teacher_model.eval()
++        for param in teacher_model.parameters():
++            param.requires_grad = False
++        teacher_model.config.use_cache = False
++        return teacher_model
++
++    import deepspeed
++    from transformers.integrations.deepspeed import HfDeepSpeedConfig
++
+     with open(config_path, 'r') as f:
+         config = json.load(f)
+ 
+@@ -208,12 +238,19 @@ def main():
+ 
+     logger.info(f"Preparing training data ({args.dataset})...")
+     datasets = prepare_dataset(args, tokenizer)
++    if args.max_train_samples > 0 and args.max_train_samples < len(datasets):
++        datasets = datasets.shuffle(seed=args.seed).select(range(args.max_train_samples))
++        logger.info(f"Training on a random subset of {len(datasets)} samples")
++
++    dtypes = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}
++    model_dtype = dtypes[args.precision]
++    teacher_dtype = model_dtype if args.teacher_dtype == "auto" else dtypes[args.teacher_dtype]
+ 
+     logger.info("Loading student model...")
+-    model = load_student_model(args, device_map, torch.bfloat16)
++    model = load_student_model(args, device_map, model_dtype)
+ 
+     logger.info(f"Loading teacher model...")
+-    teacher_model = load_teacher_model(args, num_gpus, torch.bfloat16)
++    teacher_model = load_teacher_model(args, num_gpus, teacher_dtype)
+ 
+     training_args = get_training_arguments(args, save_dir)
+ 
+@@ -240,6 +277,7 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+         final_cpu_state_dict = {}
+ 
+         if use_ds:
++            import deepspeed
+             logger.info("DeepSpeed ZeRO-3 enabled. Gathering parameters in groups...")
+ 
+             LAYER_CHUNK_SIZE = 4
+@@ -304,9 +342,10 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+ 
+             unwrapped_model.config.use_cache = True
+ 
++            save_dtype = torch.float16 if args.precision == "fp16" else torch.bfloat16
+             for k, v in final_cpu_state_dict.items():
+                 if "packed" not in k and "shape" not in k and v.dtype == torch.float32:
+-                    final_cpu_state_dict[k] = v.to(torch.bfloat16)
++                    final_cpu_state_dict[k] = v.to(save_dtype)
+ 
+             unwrapped_model.save_pretrained(save_dir, state_dict=final_cpu_state_dict, safe_serialization=True)
+             tokenizer.save_pretrained(save_dir)
+diff --git a/utils/kd_utils.py b/utils/kd_utils.py
+index 12aaae6..1e42e1e 100644
+--- a/utils/kd_utils.py
++++ b/utils/kd_utils.py
+@@ -12,12 +12,16 @@ class KDTrainer(Trainer):
+         self.l2l_loss_scale = l2l_loss_scale
+ 
+     def ce_loss(self, student_logits, teacher_logits):
+-        model_output_log_prob = F.log_softmax(student_logits, dim=-1)
+-        real_output_soft = F.softmax(teacher_logits, dim=-1)
++        # [littlebit-bench] softmax in fp32 whatever the logits' dtype (fp16 logits lose the tail otherwise)
++        model_output_log_prob = F.log_softmax(student_logits.float(), dim=-1)
++        real_output_soft = F.softmax(teacher_logits.float(), dim=-1)
+ 
+         return F.kl_div(model_output_log_prob, real_output_soft, reduction="batchmean")
+ 
+     def mse_loss(self, student_logits, teacher_logits):
++        if self.args.fp16:
++            # [littlebit-bench] no bf16 on Volta; squares of large hidden states overflow fp16, so use fp32
++            return F.mse_loss(student_logits.float(), teacher_logits.float())
+         device_type = "cuda" if torch.cuda.is_available() else "cpu"
+         with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+             return F.mse_loss(student_logits, teacher_logits)
