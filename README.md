@@ -1,7 +1,10 @@
 # LittleBit on a Tesla V100: how much quality is left below 1 bit per weight?
 
-**Status (2026-10-11, night 1): in progress.** The V100 port works and matches upstream's bf16 training step for step.
-The first long run (Qwen3-0.6B at 1.0 bit) is training now.
+**Status (2026-10-12): night 1 done.**
+
+- **Result:** Qwen3-0.6B at 1.0 bit per weight, trained for one night (49M tokens), reaches the perplexity of
+  llama.cpp's ~3-bit Q2_K. Its zero-shot accuracy is lower, only a little above chance.
+- **Next:** bigger models and the bits below 1.0.
 
 [LittleBit](https://github.com/SamsungLabs/LittleBit) (Samsung Labs, NeurIPS 2025) and LittleBit-2 (ICML 2026) compress
 an LLM's weights to **1.0 down to 0.1 bits per weight**. Each weight matrix becomes two low-rank factors stored as
@@ -16,21 +19,54 @@ This repo does that on **one 32 GB Tesla V100 (Volta, 2017)**:
 
 We are not affiliated with Samsung. All method credit goes to the LittleBit authors (see [Credit](#credit-and-licence)).
 
-## Results so far (Qwen3-0.6B)
+## Results: Qwen3-0.6B
 
-| weights | bits/weight (body) | wikitext2 PPL | c4 PPL | trained on |
-| :--- | ---: | ---: | ---: | :--- |
-| fp16 (uncompressed) | 16 | 20.95 | 25.39 | -- |
-| llama.cpp IQ2_XXS (imatrix) | 2.11 | 621.8 | 507.2 | -- |
-| llama.cpp IQ1_S (imatrix) | 1.72 | 4,071.7 | 3,738.9 | -- |
-| LittleBit-2, 1.0 bit, SVD + Joint-ITQ init only | 1.0 | 17,139,636 | | 0 tokens |
-| LittleBit-2, 1.0 bit, short probe | 1.0 | 4,008.0 | 2,207.1 | 400 samples (0.8M tokens) |
+| weights | bits/weight (body) | wikitext2 PPL | c4 PPL | zero-shot avg (7 tasks) | trained on |
+| :--- | ---: | ---: | ---: | ---: | :--- |
+| fp16 (uncompressed) | 16 | 20.95 | 25.39 | 48.4% | -- |
+| llama.cpp Q4_K_M | 4.78 | 21.77 | 26.65 | 45.6% | -- |
+| llama.cpp Q3_K_M | 3.87 | 24.46 | 28.28 | 45.5% | -- |
+| llama.cpp Q2_K | 2.95 | 39.84 | 42.54 | 41.9% | -- |
+| llama.cpp IQ2_XXS | 2.11 | 621.8 | 507.2 | 36.1% | -- |
+| llama.cpp IQ1_M | 1.87 | 1,438.5 | 1,651.7 | 34.2% | -- |
+| llama.cpp IQ1_S | 1.72 | 4,071.7 | 3,738.9 | 32.8% (fp32) | -- |
+| **LittleBit-2, 1.0 bit** | **1.02** | **37.64** | **44.16** | **38.6%** | 24,000 sequences (49M tokens), 5 h 40 min |
+| LittleBit-2, 1.0 bit, init only | 1.02 | 17,139,636 | | | 0 tokens |
+| *chance* | | | | *35.7%* | |
+
+Zero-shot accuracy per task (plain `acc`, 0-shot):
+
+| weights | boolq | piqa | hellaswag | winogrande | arc_easy | arc_challenge | openbookqa |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| fp16 | 64.3 | 67.8 | 37.6 | 56.0 | 60.9 | 31.3 | 21.0 |
+| llama.cpp Q2_K (2.95 bits) | 58.4 | 61.6 | 32.3 | 51.7 | 47.8 | 22.3 | 18.8 |
+| LittleBit 1.0 bit | 62.2 | 58.5 | 27.2 | 52.7 | 38.0 | 17.6 | 13.6 |
+| chance | 50 | 50 | 25 | 50 | 25 | 25 | 25 |
+
+What this says:
+
+- **At 1 bit, LittleBit matches llama.cpp's Q2_K on perplexity with a third of the bits.**
+  - WikiText-2: 37.6 vs 39.8. C4: 44.2 vs 42.5.
+  - Every llama.cpp quant at about 2 bits or below is broken on this model (perplexity 600 to 4,000).
+- **It keeps much less knowledge than its perplexity suggests.**
+  - The zero-shot average is 38.6%, against 35.7% for chance and 41.9% for Q2_K.
+  - boolq's 62.2% equals the share of "yes" answers in its test set, the score you would get by always
+    answering yes.
+  - arc_challenge (17.6) and openbookqa (13.6) fall *below* chance. Plain 0-shot accuracy on openbookqa is low
+    for the original model too (21.0).
+  - The model learned to produce fluent text again faster than it recovered facts and reasoning.
+- **Training was short.** This used 6% of the upstream recipe's ~850M tokens, and perplexity was still falling at
+  the end (see the curve below). These numbers are a floor for LittleBit on this model, not its ceiling.
+- **A 0.6B model is a hard test.** It has little redundancy, and the paper reports 7B+ models. Q2_K already loses
+  6.5 zero-shot points here.
+- **The pipeline checks out.** The saved, bit-packed model scores 37.638 on WikiText-2. During training the same
+  weights scored 37.634 (the difference is fp16 vs fp32 scales).
 
 How these were measured:
 
 - **Same scorer for every row.** Perplexity uses LittleBit's own `eval.py` at sequence length 2048 (`results/*/eval-*.json`).
   The zero-shot tasks are the paper's seven: boolq, piqa, hellaswag, winogrande, arc_easy, arc_challenge, openbookqa
-  (lm-eval 0.4.8, 0-shot). They run at the end of each long run.
+  (lm-eval 0.4.8, 0-shot, the full test sets). `python3 scripts/summarize.py` rebuilds the table from the JSON files.
 - **How the llama.cpp rows were made:**
   1. The model was converted to an f16 GGUF.
   2. An importance matrix was computed from WikiText-2 *train*.
@@ -42,12 +78,31 @@ How these were measured:
   model's perplexity to all four decimals (20.9550 / 25.3941). "Body" bits per weight counts the transformer's linear
   layers only; llama.cpp keeps some of them at higher precision, which is why IQ1_S averages 1.72.
 - **IQ1_S was scored in fp32.** In fp16 it overflows and gives NaN.
-- **Small models are hard to compress.** Even llama.cpp's 2-bit quant is far from usable on a 0.6B model. Night 1
-  asks whether a longer LittleBit run at **1.0 bit** gets under IQ2_XXS's 622 at twice the bits.
+
+### Learning curve (night 1, 1.0 bit, lr 1.6e-4)
+
+WikiText-2 perplexity during training, on the same windows as `eval.py` (`ppl_curve.jsonl`). The learning rate
+follows a cosine to zero over the whole run.
+
+| step | sequences seen | tokens | wikitext2 PPL |
+| ---: | ---: | ---: | ---: |
+| 0 | 0 | 0.0M | 17,139,636.0 |
+| 500 | 2,000 | 4.1M | 640.9 |
+| 1000 | 4,000 | 8.2M | 100.2 |
+| 1500 | 6,000 | 12.3M | 72.5 |
+| 2000 | 8,000 | 16.4M | 67.2 |
+| 2500 | 10,000 | 20.5M | 53.6 |
+| 3000 | 12,000 | 24.6M | 50.6 |
+| 3500 | 14,000 | 28.7M | 46.8 |
+| 4000 | 16,000 | 32.8M | 42.9 |
+| 4500 | 18,000 | 36.9M | 40.4 |
+| 5000 | 20,000 | 41.0M | 39.9 |
+| 5500 | 22,000 | 45.1M | 38.2 |
+| 6000 | 24,000 | 49.2M | 37.6 |
 
 ### What 1 bit buys on disk (`scripts/sizes.py`)
 
-The saved 1.0-bit model (`results/probe-lr1.6e-4/sizes.json`) is 647 MiB. Qwen3-0.6B's own fp16 file is 1.5 GB.
+The saved 1.0-bit model (`results/qwen3-0.6b-b1.0-long/sizes.json`) is 647 MiB. Qwen3-0.6B's own fp16 file is 1.5 GB.
 
 | part | size |
 | :--- | ---: |
@@ -84,19 +139,7 @@ Night 1 uses 1.6e-4 (`results/probe-lr*`).
 
 The upstream recipe (paper + README + `datautils.py`) trains for 5 epochs over C4 shard 0 plus WikiText-2: 82,764
 sequences of 2,048 tokens, about 850M tokens in all. This V100 trains the 0.6B model at ~2,450 tokens/s, so that recipe would take about **4 days per bit level**.
-Runs here are much shorter, and each row says what it was trained on. Night 1 is 24,000 sequences (49M tokens,
-~5.5 h), with WikiText-2 perplexity logged every 500 steps (`ppl_curve.jsonl`).
-
-Night 1 learning curve so far (1.0 bit, lr 1.6e-4, WikiText-2 perplexity during training):
-
-| step | sequences seen | tokens | wikitext2 PPL |
-| ---: | ---: | ---: | ---: |
-| 0 | 0 | 0.0M | 17,139,636.0 |
-| 500 | 2,000 | 4.1M | 640.9 |
-| 1000 | 4,000 | 8.2M | 100.2 |
-| 1500 | 6,000 | 12.3M | 72.5 |
-| 2000 | 8,000 | 16.4M | 67.2 |
-| 2500 | 10,000 | 20.5M | 53.6 |
+Runs here are much shorter, and each row says what it was trained on. Night 1 was 24,000 sequences (49M tokens, 5 h 40 min).
 
 ## What had to change for a V100 ([`patches/volta-fp16.patch`](patches/volta-fp16.patch))
 
