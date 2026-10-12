@@ -1,6 +1,7 @@
 # LittleBit on a Tesla V100: how much quality is left below 1 bit per weight?
 
-**Status (2026-10-11): in progress.** Setup, patch and the uncompressed baselines are done. Training runs are going.
+**Status (2026-10-11, night 1): in progress.** The V100 port works and matches upstream's bf16 training step for step.
+The first long run (Qwen3-0.6B at 1.0 bit) is training now.
 
 [LittleBit](https://github.com/SamsungLabs/LittleBit) (Samsung Labs, NeurIPS 2025) and LittleBit-2 (ICML 2026) compress
 an LLM's weights to **1.0 down to 0.1 bits per weight**. Each weight matrix becomes two low-rank factors stored as
@@ -11,18 +12,65 @@ This repo does that on **one 32 GB Tesla V100 (Volta, 2017)**:
 
 - **Models:** Qwen3, smallest first.
 - **Measures:** perplexity and the paper's seven zero-shot tasks at each bit level.
-- **Compared with:** the uncompressed model.
+- **Compared with:** the uncompressed model, and llama.cpp quants of the same model scored by the same code.
 
 We are not affiliated with Samsung. All method credit goes to the LittleBit authors (see [Credit](#credit-and-licence)).
 
-## Results
+## Results so far (Qwen3-0.6B)
 
-| model | weights | wikitext2 PPL | c4 PPL | zero-shot avg (7 tasks) | trained on |
-| :--- | :--- | ---: | ---: | ---: | :--- |
-| Qwen3-0.6B | fp16 (uncompressed) | 20.96 | | | -- |
+| weights | bits/weight (body) | wikitext2 PPL | c4 PPL | trained on |
+| :--- | ---: | ---: | ---: | :--- |
+| fp16 (uncompressed) | 16 | 20.95 | 25.39 | -- |
+| llama.cpp IQ2_XXS (imatrix) | 2.11 | 621.8 | 507.2 | -- |
+| llama.cpp IQ1_S (imatrix) | 1.72 | 4,071.7 | 3,738.9 | -- |
+| LittleBit-2, 1.0 bit, SVD + Joint-ITQ init only | 1.0 | 17,139,636 | | 0 tokens |
+| LittleBit-2, 1.0 bit, short probe | 1.0 | 4,008.0 | 2,207.1 | 400 samples (0.8M tokens) |
 
-Perplexity uses LittleBit's own `eval.py` at sequence length 2048. The zero-shot tasks are boolq, piqa, hellaswag,
-winogrande, arc_easy, arc_challenge and openbookqa (lm-eval 0.4.8, 0-shot).
+How these were measured:
+
+- **Same scorer for every row.** Perplexity uses LittleBit's own `eval.py` at sequence length 2048 (`results/*/eval-*.json`).
+  The zero-shot tasks are the paper's seven: boolq, piqa, hellaswag, winogrande, arc_easy, arc_challenge, openbookqa
+  (lm-eval 0.4.8, 0-shot). They run at the end of each long run.
+- **How the llama.cpp rows were made:**
+  1. The model was converted to an f16 GGUF.
+  2. An importance matrix was computed from WikiText-2 *train*.
+  3. The model was quantized with embeddings and output left at f16, as LittleBit leaves them.
+  4. Each weight was dequantized back to fp16 with gguf-py's reference code (`scripts/gguf_quants.sh`,
+     `scripts/gguf_to_hf.py`).
+
+  So llama.cpp's rounding is scored by exactly the same code as LittleBit. The f16 round trip reproduces the original
+  model's perplexity to all four decimals (20.9550 / 25.3941). "Body" bits per weight counts the transformer's linear
+  layers only; llama.cpp keeps some of them at higher precision, which is why IQ1_S averages 1.72.
+- **IQ1_S was scored in fp32.** In fp16 it overflows and gives NaN.
+- **Small models are hard to compress.** Even llama.cpp's 2-bit quant is far from usable on a 0.6B model. Night 1
+  asks whether a longer LittleBit run at **1.0 bit** gets under IQ2_XXS's 622 at twice the bits.
+
+### The port is faithful: fp16 vs upstream bf16
+
+Same 96 samples, same seed, lr 1.6e-4, both on the V100 (`results/port-fp16`, `results/port-bf16`). The two loss
+curves track each other step by step: the final (KL, layer) losses are 10,952 / 11,656 in fp16 and 11,006 / 11,435 in
+bf16, and the mean training loss is 55,546 vs 56,530. **fp16 is 3.1x faster: 1.20 vs 0.39 samples/s.** Part of each
+step stays in fp32 either way (the 152k-word softmax and the losses), so the gain is smaller than a raw matmul's
+(84.6 vs 9.6 TFLOPS on this card).
+
+### Learning rate
+
+Upstream's README example uses 4e-5, for Llama-2-7B trained on ~850M tokens. On the 0.6B model, over 100 steps, 1.6e-4 learns
+clearly faster. Averages over the last eighth of each run:
+
+| lr | KL loss | layer loss |
+| :--- | ---: | ---: |
+| 4e-5 | ~11,900 | ~12,000 |
+| 1.6e-4 | ~10,000 | ~7,400 |
+
+Night 1 uses 1.6e-4 (`results/probe-lr*`).
+
+### Training budget
+
+The upstream recipe (paper + README + `datautils.py`) trains for 5 epochs over C4 shard 0 plus WikiText-2: 82,764
+sequences of 2,048 tokens, about 850M tokens in all. This V100 trains the 0.6B model at ~2,450 tokens/s, so that recipe would take about **4 days per bit level**.
+Runs here are much shorter, and each row says what it was trained on. Night 1 is 24,000 sequences (49M tokens,
+~5.5 h), with WikiText-2 perplexity logged every 500 steps (`ppl_curve.jsonl`).
 
 ## What had to change for a V100 ([`patches/volta-fp16.patch`](patches/volta-fp16.patch))
 
@@ -43,21 +91,31 @@ LittleBit trains and evaluates in bf16 everywhere. The patch:
    5 epochs over a full C4 shard plus WikiText-2.
 5. **Adds `--load_direct_to_gpu`:** builds the student on the GPU, for hosts with less RAM than the model (this one
    has 16 GB).
-6. **`eval.py --dtype`** picks fp16/fp32 explicitly. `--results_json` writes the numbers to a file. The perplexity loss
-   is computed in fp32.
+6. **Adds `--fp16_init_scale` (default 1.0).** LittleBit's loss starts near 1e5: the KL is summed over every token
+   and the layer loss is weighted 10x. Its fp16 gradients overflow at torch's default starting loss scale of 2^16, so
+   the first ~19 optimizer steps were skipped while the scale backed off to 0.125. The gradient norm is ~1e6 and is
+   always clipped to 1.0, so the loss scale does not change the updates.
+7. **Adds `--eval_every N`:** a learning curve. Every N steps it logs WikiText-2 perplexity on the same windows as
+   `eval.py`.
+8. **`eval.py --dtype`** picks fp16/fp32 explicitly. `--results_json` writes the numbers to a file. The perplexity
+   loss is computed in fp32.
 
 The defaults are unchanged. Without the new flags, upstream's bf16 behaviour is the same.
 
 ## Reproduce
 
 ```bash
-./setup.sh                                   # clone LittleBit @42d658b, apply the patch, Python 3.12 venv (torch 2.6 cu124)
-scripts/eval.sh qwen3-0.6b-fp Qwen/Qwen3-0.6B fp16 fp          # uncompressed baseline
-SAMPLES=2000 scripts/train.sh qwen3-0.6b-b1.0 Qwen/Qwen3-0.6B 1.0
-scripts/eval.sh qwen3-0.6b-b1.0 /mnt/steam/littlebit/runs/qwen3-0.6b-b1.0 fp16
+./setup.sh                        # clone LittleBit @42d658b, apply the patch, Python 3.12 venv (torch 2.6 cu124)
+scripts/eval.sh qwen3-0.6b-fp Qwen/Qwen3-0.6B fp16 fp                     # uncompressed baseline
+SAMPLES=24000 LR=1.6e-04 scripts/train.sh qwen3-0.6b-b1.0-long Qwen/Qwen3-0.6B 1.0 --eval_every 500
+scripts/eval.sh qwen3-0.6b-b1.0-long /mnt/steam/littlebit/runs/qwen3-0.6b-b1.0-long fp16
+scripts/gguf_quants.sh qwen3-0.6b Qwen/Qwen3-0.6B                       # llama.cpp quants of the same model
+python3 scripts/summarize.py                                            # the results table
 ```
 
-`scripts/env.sh` pins the run to the V100 (`CUDA_VISIBLE_DEVICES=1` in PCI order on this host; override with `LB_GPU`).
+`scripts/night1.sh` is the exact queue of night 1.
+
+`scripts/env.sh` pins every run to the V100 (`CUDA_VISIBLE_DEVICES=1` in PCI order on this host; override with `LB_GPU`).
 
 Environment: Ubuntu, i7-13700KF, 16 GB RAM, Tesla V100-PCIE-32GB. Python 3.12, torch 2.6.0+cu124, transformers 4.51.3,
 datasets 3.4.1, lm-eval 0.4.8.

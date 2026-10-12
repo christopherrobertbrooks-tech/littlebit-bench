@@ -50,7 +50,7 @@ index 446b1ed..b78500a 100644
      # Note: Default values are set to None.
      # This allows `LittleBitModel` to load parameters from config files natively,
 diff --git a/main.py b/main.py
-index d5f6810..bbc09a1 100644
+index d5f6810..4b198d2 100644
 --- a/main.py
 +++ b/main.py
 @@ -6,14 +6,12 @@ import json
@@ -63,8 +63,9 @@ index d5f6810..bbc09a1 100644
  import torch.nn as nn
  from datasets import load_from_disk
  from transformers import default_data_collator
- from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, set_seed
+-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, set_seed
 -from transformers.integrations.deepspeed import HfDeepSpeedConfig
++from transformers import AutoModelForCausalLM, AutoTokenizer, TrainerCallback, TrainingArguments, set_seed
  
  from quantization.utils import apply_littlebit_patch
  from utils.datautils import prepare_dataset, load_tokenizer
@@ -88,7 +89,7 @@ index d5f6810..bbc09a1 100644
      parser.add_argument("--quant_func", type=str, default="STEBinary")
      parser.add_argument("--quant_mod", type=str, default="LittleBitLinear")
  
-@@ -84,6 +86,16 @@ def get_args():
+@@ -84,6 +86,18 @@ def get_args():
      parser.add_argument("--use_itq", type=str2bool, default=False)
      parser.add_argument("--itq_n_iter", type=int, default=50)
  
@@ -97,6 +98,8 @@ index d5f6810..bbc09a1 100644
 +    parser.add_argument("--precision", type=str, default="bf16", choices=["bf16", "fp16"])
 +    parser.add_argument("--teacher_dtype", type=str, default="auto", choices=["auto", "bf16", "fp16", "fp32"])
 +    parser.add_argument("--max_train_samples", type=int, default=-1, help="train on a seeded random subset")
++    parser.add_argument("--eval_every", type=int, default=0,
++                        help="every N optimizer steps, log WikiText-2 perplexity (same windows as eval.py)")
 +    parser.add_argument("--fp16_init_scale", type=float, default=1.0,
 +                        help="first fp16 loss scale (LittleBit's losses are ~1e5; torch's 2^16 overflows)")
 +    parser.add_argument("--load_direct_to_gpu", type=str2bool, default=False,
@@ -105,7 +108,7 @@ index d5f6810..bbc09a1 100644
      args = parser.parse_args()
  
      return args
-@@ -105,7 +117,8 @@ def get_training_arguments(args, save_dir):
+@@ -105,7 +119,8 @@ def get_training_arguments(args, save_dir):
          gradient_accumulation_steps=args.gradient_accumulation_steps,
          warmup_ratio=args.warmup_ratio,
          num_train_epochs=args.num_train_epochs,
@@ -115,7 +118,7 @@ index d5f6810..bbc09a1 100644
          logging_steps=1,
          save_strategy="no",
          save_steps=10000,
-@@ -125,7 +138,7 @@ def load_student_model(args, device_map, torch_dtype):
+@@ -125,7 +140,7 @@ def load_student_model(args, device_map, torch_dtype):
      model = AutoModelForCausalLM.from_pretrained(
          args.model_id,
          torch_dtype=torch_dtype,
@@ -124,7 +127,7 @@ index d5f6810..bbc09a1 100644
          low_cpu_mem_usage=True,
          trust_remote_code=True,
      )
-@@ -138,11 +151,30 @@ def load_student_model(args, device_map, torch_dtype):
+@@ -138,11 +153,30 @@ def load_student_model(args, device_map, torch_dtype):
      if device_map:
          model.to(device_map if isinstance(device_map, (str, torch.device)) else list(device_map.values())[0])
  
@@ -155,7 +158,55 @@ index d5f6810..bbc09a1 100644
      with open(config_path, 'r') as f:
          config = json.load(f)
  
-@@ -208,17 +240,28 @@ def main():
+@@ -166,6 +200,47 @@ def load_teacher_model(args, num_gpus, torch_dtype, config_path="configs/zero3_i
+     return teacher_model
+ 
+ 
++class PerplexityCallback(TrainerCallback):
++    """[littlebit-bench] A learning curve in perplexity: WikiText-2 test at 2048 tokens, the same windows and loss as
++    eval.py, so the last point matches the final eval. Written to <save_dir>/ppl_curve.jsonl."""
++
++    def __init__(self, tokenizer, every, out_path, seqlen=2048):
++        from utils.datautils import get_wikitext2
++        self.ids = get_wikitext2(tokenizer).input_ids
++        self.every, self.out_path, self.seqlen = every, out_path, seqlen
++
++    @torch.no_grad()
++    def ppl(self, model):
++        was_training = model.training
++        model.eval()
++        device = next(model.parameters()).device
++        n = self.ids.numel() // self.seqlen
++        nll = 0.0
++        for i in range(n):
++            batch = self.ids[:, i * self.seqlen:(i + 1) * self.seqlen].to(device)
++            with torch.autocast("cuda", dtype=torch.float16):
++                logits = model(batch, use_cache=False).logits
++            nll += nn.functional.cross_entropy(logits[0, :-1].float(), batch[0, 1:]).item() * (self.seqlen - 1)
++        if was_training:
++            model.train()
++        return float(torch.exp(torch.tensor(nll / (n * (self.seqlen - 1)))))
++
++    def log_point(self, state, model):
++        p = self.ppl(model)
++        row = {"step": state.global_step, "samples": state.global_step * self.samples_per_step, "wiki_ppl": p}
++        print(f"[ppl-curve] {json.dumps(row)}", flush=True)
++        with open(self.out_path, "a") as f:
++            f.write(json.dumps(row) + "\n")
++
++    def on_train_begin(self, args, state, control, model=None, **kwargs):
++        self.samples_per_step = args.per_device_train_batch_size * args.gradient_accumulation_steps
++        self.log_point(state, model)
++
++    def on_step_end(self, args, state, control, model=None, **kwargs):
++        if state.global_step % self.every == 0 or state.global_step == state.max_steps:
++            self.log_point(state, model)
++
++
+ def setup_trainer(model, teacher_model, tokenizer, datasets, training_args, args):
+     trainer = KDTrainer(
+         model=model,
+@@ -208,17 +283,30 @@ def main():
  
      logger.info(f"Preparing training data ({args.dataset})...")
      datasets = prepare_dataset(args, tokenizer)
@@ -179,6 +230,8 @@ index d5f6810..bbc09a1 100644
  
      logger.info(f"Setting trainer...")
      trainer = setup_trainer(model, teacher_model, tokenizer, datasets, training_args, args)
++    if args.eval_every > 0:
++        trainer.add_callback(PerplexityCallback(tokenizer, args.eval_every, os.path.join(save_dir, "ppl_curve.jsonl")))
 +    if args.precision == "fp16" and getattr(trainer.accelerator, "scaler", None) is not None:
 +        # [littlebit-bench] the KL is summed over every token and the layer MSE is x10, so the loss starts near 1e5 and
 +        # fp16 gradients overflow at torch's default scale of 2^16: ~19 steps get skipped while it backs off.
@@ -186,7 +239,7 @@ index d5f6810..bbc09a1 100644
  
      trainer.train()
  
-@@ -240,6 +283,7 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+@@ -240,6 +328,7 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
          final_cpu_state_dict = {}
  
          if use_ds:
@@ -194,7 +247,7 @@ index d5f6810..bbc09a1 100644
              logger.info("DeepSpeed ZeRO-3 enabled. Gathering parameters in groups...")
  
              LAYER_CHUNK_SIZE = 4
-@@ -304,9 +348,10 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+@@ -304,9 +393,10 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
  
              unwrapped_model.config.use_cache = True
  

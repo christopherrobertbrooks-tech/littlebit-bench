@@ -1,0 +1,10 @@
+{
+  "gguf": "f16.gguf",
+  "body_bits_per_weight": 16.0,
+  "body_weights": 440401920,
+  "gguf_bytes": 1509347616,
+  "types_by_weights": {
+    "F16": 440401920
+  },
+  "embeddings": "F16"
+}

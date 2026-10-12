@@ -1,0 +1,12 @@
+{
+  "gguf": "IQ1_S.gguf",
+  "body_bits_per_weight": 1.722767857142857,
+  "body_weights": 440401920,
+  "gguf_bytes": 723382848,
+  "types_by_weights": {
+    "IQ1_S": 342884352,
+    "Q2_K": 38797312,
+    "IQ2_XXS": 58720256
+  },
+  "embeddings": "F16"
+}

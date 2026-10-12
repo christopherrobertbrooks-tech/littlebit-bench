@@ -1,0 +1,34 @@
+{
+  "args": {
+    "use_accelerator": false,
+    "model_id": "/mnt/steam/littlebit/runs/qwen3-0.6b-gguf-IQ1_S",
+    "fp_eval": true,
+    "dtype": "fp32",
+    "results_json": "/mnt/steam/littlebit/runs/qwen3-0.6b-gguf-IQ1_S/eval-fp32.json",
+    "quant_func": null,
+    "quant_mod": null,
+    "num_expert": null,
+    "is_po2": null,
+    "residual": null,
+    "split_dim": null,
+    "eff_bit": null,
+    "kv_factor": null,
+    "use_itq": null,
+    "itq_n_iter": null,
+    "ppl_task": "wikitext2,c4",
+    "zeroshot_task": "",
+    "batch_size": 8,
+    "num_fewshot": 0,
+    "limit": -1,
+    "seqlen": 2048
+  },
+  "dtype": "torch.float32",
+  "results": {
+    "wikitext2": {
+      "ppl": 4071.717041015625
+    },
+    "c4": {
+      "ppl": 3738.944580078125
+    }
+  }
+}
