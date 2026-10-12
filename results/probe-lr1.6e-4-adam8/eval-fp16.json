@@ -1,0 +1,34 @@
+{
+  "args": {
+    "use_accelerator": false,
+    "model_id": "/mnt/steam/littlebit/runs/probe-lr1.6e-4-adam8",
+    "fp_eval": false,
+    "dtype": "fp16",
+    "results_json": "/mnt/steam/littlebit/runs/probe-lr1.6e-4-adam8/eval-fp16.json",
+    "quant_func": null,
+    "quant_mod": null,
+    "num_expert": null,
+    "is_po2": null,
+    "residual": null,
+    "split_dim": null,
+    "eff_bit": null,
+    "kv_factor": null,
+    "use_itq": null,
+    "itq_n_iter": null,
+    "ppl_task": "wikitext2,c4",
+    "zeroshot_task": "",
+    "batch_size": 8,
+    "num_fewshot": 0,
+    "limit": -1,
+    "seqlen": 2048
+  },
+  "dtype": "torch.float16",
+  "results": {
+    "wikitext2": {
+      "ppl": 3291.4296875
+    },
+    "c4": {
+      "ppl": 1858.89794921875
+    }
+  }
+}

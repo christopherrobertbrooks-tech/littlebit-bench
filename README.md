@@ -196,7 +196,14 @@ LittleBit trains and evaluates in bf16 everywhere. The patch:
 9. **Adds `--warm_start_from <finished model>`:** continues from a packed model, using its signs and scales. The
    latent values are lost, so each one restarts at ±`--warm_mag` (0.03). SmoothSign's gradient only reaches latents
    with |x| below ~0.05. The forward pass uses only signs and scales, so step 0 reproduces the finished model.
-10. **`eval.py --dtype`** picks fp16/fp32 explicitly. `--results_json` writes the numbers to a file. The perplexity
+10. **Adds `--optim`** (default `adamw_torch`, as upstream).
+    - **Why:** Qwen3-1.7B at 1 bit has 1.36B trainable latent weights, and plain AdamW's state for them is 11 GB.
+      That ran out of memory on a 32 GB card at the second step.
+    - **Fix:** `adamw_bnb_8bit` (bitsandbytes 0.50, which works on Volta) keeps that state in 8 bits, about 2.7 GB.
+      The 1.7B then peaks at 26.9 GB.
+    - **Checked against plain AdamW:** same 0.6B probe, same seed (`results/probe-lr1.6e-4-adam8`). The loss
+      curves are nearly identical; final perplexity was 3,291 vs 4,008 at that early stage.
+11. **`eval.py --dtype`** picks fp16/fp32 explicitly. `--results_json` writes the numbers to a file. The perplexity
    loss is computed in fp32.
 
 The defaults are unchanged. Without the new flags, upstream's bf16 behaviour is the same.

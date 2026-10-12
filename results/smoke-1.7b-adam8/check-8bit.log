@@ -1,0 +1,11 @@
+1.7B smoke exit 0
+1.7B peak MiB: 26905
+{'loss': 941530.125, 'grad_norm': 12445407.0, 'learning_rate': 0.0, 'epoch': 0.12}
+{'loss': 927745.5625, 'grad_norm': 12264289.0, 'learning_rate': 0.00016, 'epoch': 0.25}
+{'loss': 626346.375, 'grad_norm': 16080175.0, 'learning_rate': 0.00015207750943219353, 'epoch': 0.38}
+{'loss': 501006.6875, 'grad_norm': 1980049.875, 'learning_rate': 0.00012987918414869868, 'epoch': 0.5}
+{'loss': 449306.375, 'grad_norm': 1456397.625, 'learning_rate': 9.780167471650515e-05, 'epoch': 0.62}
+{'loss': 413465.875, 'grad_norm': 597187.3125, 'learning_rate': 6.219832528349486e-05, 'epoch': 0.75}
+{'loss': 408070.3438, 'grad_norm': 606524.0, 'learning_rate': 3.0120815851301325e-05, 'epoch': 0.88}
+{'loss': 384993.5, 'grad_norm': 606180.9375, 'learning_rate': 7.922490567806478e-06, 'epoch': 1.0}
+CHECK8-DONE

@@ -23,5 +23,6 @@ VIRTUAL_ENV=$LB_ROOT/venv uv pip install -q \
     --index-url https://download.pytorch.org/whl/cu124 --extra-index-url https://pypi.org/simple \
     --index-strategy unsafe-best-match \
     "torch==2.6.0+cu124" "numpy==2.2.4" "transformers==4.51.3" "datasets==3.4.1" "lm-eval==0.4.8" \
-    "accelerate>=1.6.0" sentencepiece tqdm "pytorch-optimizer>=3.5.0" "GPUtil>=1.4.0" safetensors
+    "accelerate>=1.6.0" sentencepiece tqdm "pytorch-optimizer>=3.5.0" "GPUtil>=1.4.0" safetensors \
+    "bitsandbytes>=0.45"
 "$LB_ROOT/venv/bin/python" -c "import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda, torch.cuda.get_arch_list())"

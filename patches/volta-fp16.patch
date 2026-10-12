@@ -50,7 +50,7 @@ index 446b1ed..b78500a 100644
      # Note: Default values are set to None.
      # This allows `LittleBitModel` to load parameters from config files natively,
 diff --git a/main.py b/main.py
-index d5f6810..f9a99ac 100644
+index d5f6810..174233a 100644
 --- a/main.py
 +++ b/main.py
 @@ -6,16 +6,15 @@ import json
@@ -92,7 +92,7 @@ index d5f6810..f9a99ac 100644
      parser.add_argument("--quant_func", type=str, default="STEBinary")
      parser.add_argument("--quant_mod", type=str, default="LittleBitLinear")
  
-@@ -84,6 +87,27 @@ def get_args():
+@@ -84,6 +87,29 @@ def get_args():
      parser.add_argument("--use_itq", type=str2bool, default=False)
      parser.add_argument("--itq_n_iter", type=int, default=50)
  
@@ -103,6 +103,8 @@ index d5f6810..f9a99ac 100644
 +    parser.add_argument("--max_train_samples", type=int, default=-1, help="train on a seeded random subset")
 +    parser.add_argument("--eval_every", type=int, default=0,
 +                        help="every N optimizer steps, log WikiText-2 perplexity (same windows as eval.py)")
++    parser.add_argument("--optim", type=str, default="adamw_torch",
++                        help="adamw_bnb_8bit keeps Adam's state in 8 bits: 1.7B's 1.36B latent weights fit a 32 GB card")
 +    parser.add_argument("--save_every", type=int, default=0,
 +                        help="write a resumable checkpoint (latent factors + optimizer) every N steps and at the end")
 +    parser.add_argument("--save_total_limit", type=int, default=2)
@@ -120,7 +122,7 @@ index d5f6810..f9a99ac 100644
      args = parser.parse_args()
  
      return args
-@@ -105,10 +129,12 @@ def get_training_arguments(args, save_dir):
+@@ -105,14 +131,16 @@ def get_training_arguments(args, save_dir):
          gradient_accumulation_steps=args.gradient_accumulation_steps,
          warmup_ratio=args.warmup_ratio,
          num_train_epochs=args.num_train_epochs,
@@ -136,7 +138,12 @@ index d5f6810..f9a99ac 100644
          output_dir=save_dir,
          learning_rate=args.lr,
          lr_scheduler_type="cosine",
-@@ -125,7 +151,7 @@ def load_student_model(args, device_map, torch_dtype):
+-        optim="adamw_torch",
++        optim=args.optim,
+         adam_beta1=args.adam_beta1,
+         adam_beta2=args.adam_beta2,
+         deepspeed=args.ds_config_path,
+@@ -125,7 +153,7 @@ def load_student_model(args, device_map, torch_dtype):
      model = AutoModelForCausalLM.from_pretrained(
          args.model_id,
          torch_dtype=torch_dtype,
@@ -145,7 +152,7 @@ index d5f6810..f9a99ac 100644
          low_cpu_mem_usage=True,
          trust_remote_code=True,
      )
-@@ -138,11 +164,62 @@ def load_student_model(args, device_map, torch_dtype):
+@@ -138,11 +166,62 @@ def load_student_model(args, device_map, torch_dtype):
      if device_map:
          model.to(device_map if isinstance(device_map, (str, torch.device)) else list(device_map.values())[0])
  
@@ -208,7 +215,7 @@ index d5f6810..f9a99ac 100644
      with open(config_path, 'r') as f:
          config = json.load(f)
  
-@@ -166,6 +243,47 @@ def load_teacher_model(args, num_gpus, torch_dtype, config_path="configs/zero3_i
+@@ -166,6 +245,47 @@ def load_teacher_model(args, num_gpus, torch_dtype, config_path="configs/zero3_i
      return teacher_model
  
  
@@ -256,7 +263,7 @@ index d5f6810..f9a99ac 100644
  def setup_trainer(model, teacher_model, tokenizer, datasets, training_args, args):
      trainer = KDTrainer(
          model=model,
-@@ -208,20 +326,37 @@ def main():
+@@ -208,20 +328,37 @@ def main():
  
      logger.info(f"Preparing training data ({args.dataset})...")
      datasets = prepare_dataset(args, tokenizer)
@@ -299,7 +306,7 @@ index d5f6810..f9a99ac 100644
      save_artifacts(trainer, model, tokenizer, save_dir, args)
  
  
-@@ -240,6 +375,7 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+@@ -240,6 +377,7 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
          final_cpu_state_dict = {}
  
          if use_ds:
@@ -307,7 +314,7 @@ index d5f6810..f9a99ac 100644
              logger.info("DeepSpeed ZeRO-3 enabled. Gathering parameters in groups...")
  
              LAYER_CHUNK_SIZE = 4
-@@ -304,9 +440,10 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+@@ -304,9 +442,10 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
  
              unwrapped_model.config.use_cache = True
  

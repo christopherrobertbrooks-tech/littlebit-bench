@@ -1,0 +1,60 @@
+=== 2026-10-12 10:38:38 train.sh smoke-1.7b-adam8 Qwen/Qwen3-1.7B 1.0 --optim adamw_bnb_8bit --fp16_init_scale 0.03125
+2026-10-12 10:38:40,869 - __main__ - INFO - Loading tokenizer...
+2026-10-12 10:38:41,216 - __main__ - INFO - Preparing training data (c4_wiki)...
+2026-10-12 10:38:41,402 - utils.datautils - INFO - Attempting to load dataset from disk at '/mnt/steam/littlebit/data/c4_wiki/16eeff7'
+2026-10-12 10:38:41,991 - utils.datautils - INFO - Successfully loaded dataset from disk at '/mnt/steam/littlebit/data/c4_wiki/16eeff7'
+2026-10-12 10:38:42,005 - __main__ - INFO - Training on a random subset of 32 samples
+2026-10-12 10:38:42,005 - __main__ - INFO - Loading student model...
+Loading Fast Tokenizer for Qwen/Qwen3-1.7B...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:04<00:04,  4.84s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:05<00:00,  2.48s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:05<00:00,  2.84s/it]
+2026-10-12 10:53:03,104 - __main__ - INFO - Loading teacher model...
+INFO: Applying quantization patch...
+trainable params: 1360639872 || all params: 1671804800 || trainable%: 81.38748447187136
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:01<00:01,  1.12s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.74it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.52it/s]
+2026-10-12 10:53:04,779 - __main__ - INFO - Setting trainer...
+  0%|          | 0/8 [00:00<?, ?it/s]                                       0%|          | 0/8 [00:00<?, ?it/s]                                       0%|          | 0/8 [00:02<?, ?it/s]                                       0%|          | 0/8 [00:03<?, ?it/s]                                       0%|          | 0/8 [00:05<?, ?it/s] 12%|█▎        | 1/8 [00:06<00:46,  6.65s/it]                                              12%|█▎        | 1/8 [00:06<00:46,  6.65s/it]                                              12%|█▎        | 1/8 [00:07<00:46,  6.65s/it]                                              12%|█▎        | 1/8 [00:08<00:46,  6.65s/it]                                              12%|█▎        | 1/8 [00:10<00:46,  6.65s/it]                                              12%|█▎        | 1/8 [00:11<00:46,  6.65s/it] 25%|██▌       | 2/8 [00:13<00:39,  6.56s/it]                                              25%|██▌       | 2/8 [00:13<00:39,  6.56s/it]                                              25%|██▌       | 2/8 [00:13<00:39,  6.56s/it]                                              25%|██▌       | 2/8 [00:15<00:39,  6.56s/it]                                              25%|██▌       | 2/8 [00:16<00:39,  6.56s/it]                                              25%|██▌       | 2/8 [00:18<00:39,  6.56s/it] 38%|███▊      | 3/8 [00:19<00:32,  6.54s/it]                                              38%|███▊      | 3/8 [00:19<00:32,  6.54s/it]                                              38%|███▊      | 3/8 [00:20<00:32,  6.54s/it]                                              38%|███▊      | 3/8 [00:21<00:32,  6.54s/it]                                              38%|███▊      | 3/8 [00:23<00:32,  6.54s/it]                                              38%|███▊      | 3/8 [00:24<00:32,  6.54s/it] 50%|█████     | 4/8 [00:26<00:26,  6.53s/it]                                              50%|█████     | 4/8 [00:26<00:26,  6.53s/it]                                              50%|█████     | 4/8 [00:26<00:26,  6.53s/it]                                              50%|█████     | 4/8 [00:28<00:26,  6.53s/it]                                              50%|█████     | 4/8 [00:29<00:26,  6.53s/it]                                              50%|█████     | 4/8 [00:31<00:26,  6.53s/it] 62%|██████▎   | 5/8 [00:32<00:19,  6.52s/it]                                              62%|██████▎   | 5/8 [00:32<00:19,  6.52s/it]                                              62%|██████▎   | 5/8 [00:33<00:19,  6.52s/it]                                              62%|██████▎   | 5/8 [00:34<00:19,  6.52s/it]                                              62%|██████▎   | 5/8 [00:36<00:19,  6.52s/it]                                              62%|██████▎   | 5/8 [00:37<00:19,  6.52s/it] 75%|███████▌  | 6/8 [00:39<00:13,  6.51s/it]                                              75%|███████▌  | 6/8 [00:39<00:13,  6.51s/it]                                              75%|███████▌  | 6/8 [00:39<00:13,  6.51s/it]                                              75%|███████▌  | 6/8 [00:41<00:13,  6.51s/it]                                              75%|███████▌  | 6/8 [00:42<00:13,  6.51s/it]                                              75%|███████▌  | 6/8 [00:44<00:13,  6.51s/it] 88%|████████▊ | 7/8 [00:45<00:06,  6.51s/it]                                              88%|████████▊ | 7/8 [00:45<00:06,  6.51s/it]                                              88%|████████▊ | 7/8 [00:46<00:06,  6.51s/it]                                              88%|████████▊ | 7/8 [00:47<00:06,  6.51s/it]                                              88%|████████▊ | 7/8 [00:49<00:06,  6.51s/it]                                              88%|████████▊ | 7/8 [00:50<00:06,  6.51s/it]100%|██████████| 8/8 [00:52<00:00,  6.51s/it]                                             100%|██████████| 8/8 [00:52<00:00,  6.51s/it]                                             100%|██████████| 8/8 [00:52<00:00,  6.51s/it]100%|██████████| 8/8 [00:52<00:00,  6.52s/it]
+2026-10-12 10:53:57,128 - __main__ - INFO - Starting artifact saving process (Grouped Chunk Strategy)...
+2026-10-12 10:53:57,781 - __main__ - INFO - Saving to disk...
+2026-10-12 10:53:57,781 - __main__ - INFO - Saved LittleBit config to /mnt/steam/littlebit/runs/smoke-1.7b-adam8/littlebit_config.json
+2026-10-12 10:53:59,606 - __main__ - INFO - Artifacts saved successfully.
+{'l2l_loss': 191295.609375, 'kd_loss': 31456.953125, 'loss_scale': 0.03125, 'epoch': 0}
+{'l2l_loss': 212101.703125, 'kd_loss': 32175.453125, 'loss_scale': 0.03125, 'epoch': 0}
+{'l2l_loss': 204106.3125, 'kd_loss': 33072.328125, 'loss_scale': 0.03125, 'epoch': 0}
+{'l2l_loss': 203414.984375, 'kd_loss': 33906.7421875, 'loss_scale': 0.03125, 'epoch': 0}
+{'loss': 941530.125, 'grad_norm': 12445407.0, 'learning_rate': 0.0, 'epoch': 0.12}
+{'l2l_loss': 192183.765625, 'kd_loss': 34038.8125, 'loss_scale': 0.03125, 'epoch': 0.12}
+{'l2l_loss': 194366.90625, 'kd_loss': 31094.49609375, 'loss_scale': 0.03125, 'epoch': 0.12}
+{'l2l_loss': 191543.90625, 'kd_loss': 32202.98046875, 'loss_scale': 0.03125, 'epoch': 0.12}
+{'l2l_loss': 217810.09375, 'kd_loss': 34504.59375, 'loss_scale': 0.03125, 'epoch': 0.12}
+{'loss': 927745.5625, 'grad_norm': 12264289.0, 'learning_rate': 0.00016, 'epoch': 0.25}
+{'l2l_loss': 135129.078125, 'kd_loss': 21359.73046875, 'loss_scale': 0.03125, 'epoch': 0.25}
+{'l2l_loss': 129239.625, 'kd_loss': 24719.486328125, 'loss_scale': 0.03125, 'epoch': 0.25}
+{'l2l_loss': 137188.78125, 'kd_loss': 20744.92578125, 'loss_scale': 0.03125, 'epoch': 0.25}
+{'l2l_loss': 131254.96875, 'kd_loss': 26709.8203125, 'loss_scale': 0.03125, 'epoch': 0.25}
+{'loss': 626346.375, 'grad_norm': 16080175.0, 'learning_rate': 0.00015207750943219353, 'epoch': 0.38}
+{'l2l_loss': 106126.4921875, 'kd_loss': 17656.25, 'loss_scale': 0.03125, 'epoch': 0.38}
+{'l2l_loss': 108913.9765625, 'kd_loss': 16074.931640625, 'loss_scale': 0.03125, 'epoch': 0.38}
+{'l2l_loss': 111358.625, 'kd_loss': 16421.759765625, 'loss_scale': 0.03125, 'epoch': 0.38}
+{'l2l_loss': 108843.4765625, 'kd_loss': 15611.169921875, 'loss_scale': 0.03125, 'epoch': 0.38}
+{'loss': 501006.6875, 'grad_norm': 1980049.875, 'learning_rate': 0.00012987918414869868, 'epoch': 0.5}
+{'l2l_loss': 98232.515625, 'kd_loss': 16638.73046875, 'loss_scale': 0.03125, 'epoch': 0.5}
+{'l2l_loss': 97554.8828125, 'kd_loss': 16261.51953125, 'loss_scale': 0.03125, 'epoch': 0.5}
+{'l2l_loss': 87735.6953125, 'kd_loss': 16059.7255859375, 'loss_scale': 0.03125, 'epoch': 0.5}
+{'l2l_loss': 100564.203125, 'kd_loss': 16259.091796875, 'loss_scale': 0.03125, 'epoch': 0.5}
+{'loss': 449306.375, 'grad_norm': 1456397.625, 'learning_rate': 9.780167471650515e-05, 'epoch': 0.62}
+{'l2l_loss': 94339.8125, 'kd_loss': 14151.126953125, 'loss_scale': 0.03125, 'epoch': 0.62}
+{'l2l_loss': 88197.65625, 'kd_loss': 12130.220703125, 'loss_scale': 0.03125, 'epoch': 0.62}
+{'l2l_loss': 90607.78125, 'kd_loss': 12923.1591796875, 'loss_scale': 0.03125, 'epoch': 0.62}
+{'l2l_loss': 88737.765625, 'kd_loss': 12378.34375, 'loss_scale': 0.03125, 'epoch': 0.62}
+{'loss': 413465.875, 'grad_norm': 597187.3125, 'learning_rate': 6.219832528349486e-05, 'epoch': 0.75}
+{'l2l_loss': 90961.9375, 'kd_loss': 12281.53125, 'loss_scale': 0.03125, 'epoch': 0.75}
+{'l2l_loss': 95965.78125, 'kd_loss': 13353.072265625, 'loss_scale': 0.03125, 'epoch': 0.75}
+{'l2l_loss': 83715.6171875, 'kd_loss': 13488.5390625, 'loss_scale': 0.03125, 'epoch': 0.75}
+{'l2l_loss': 86214.0, 'kd_loss': 12089.8837890625, 'loss_scale': 0.03125, 'epoch': 0.75}
+{'loss': 408070.3438, 'grad_norm': 606524.0, 'learning_rate': 3.0120815851301325e-05, 'epoch': 0.88}
+{'l2l_loss': 84122.484375, 'kd_loss': 11411.421875, 'loss_scale': 0.03125, 'epoch': 0.88}
+{'l2l_loss': 82799.84375, 'kd_loss': 12796.4189453125, 'loss_scale': 0.03125, 'epoch': 0.88}
+{'l2l_loss': 84748.671875, 'kd_loss': 12810.2548828125, 'loss_scale': 0.03125, 'epoch': 0.88}
+{'l2l_loss': 85070.78125, 'kd_loss': 11233.619140625, 'loss_scale': 0.03125, 'epoch': 0.88}
+{'loss': 384993.5, 'grad_norm': 606180.9375, 'learning_rate': 7.922490567806478e-06, 'epoch': 1.0}
+{'train_runtime': 52.1957, 'train_samples_per_second': 0.613, 'train_steps_per_second': 0.153, 'train_loss': 581558.10546875, 'epoch': 1.0}
