@@ -1,0 +1,13 @@
+{
+  "bytes": {
+    "lm_head": 311164928,
+    "embeddings": 311164928,
+    "norms": 131072,
+    "binary factors (packed)": 52928512,
+    "bookkeeping": 14896,
+    "scales": 3012352
+  },
+  "total_bytes": 678416688,
+  "compressed_layer_weights": 440401920,
+  "body_bits_per_weight": 1.0161783854166666
+}

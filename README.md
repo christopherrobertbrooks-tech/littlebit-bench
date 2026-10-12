@@ -45,6 +45,21 @@ How these were measured:
 - **Small models are hard to compress.** Even llama.cpp's 2-bit quant is far from usable on a 0.6B model. Night 1
   asks whether a longer LittleBit run at **1.0 bit** gets under IQ2_XXS's 622 at twice the bits.
 
+### What 1 bit buys on disk (`scripts/sizes.py`)
+
+The saved 1.0-bit model (`results/probe-lr1.6e-4/sizes.json`) is 647 MiB. Qwen3-0.6B's own fp16 file is 1.5 GB.
+
+| part | size |
+| :--- | ---: |
+| embeddings | 296.8 MiB |
+| lm_head | 296.8 MiB |
+| binary factors (packed) | 50.5 MiB |
+| scales | 2.9 MiB |
+
+The compressed layers really are at 1.016 bits per weight (440.4M weights), down from 840 MiB in fp16, 16x smaller.
+But at this model size the uncompressed embeddings dominate. Qwen3-0.6B ties lm_head to the embeddings, yet both
+files store a copy, so one 297 MiB copy could be dropped.
+
 ### The port is faithful: fp16 vs upstream bf16
 
 Same 96 samples, same seed, lr 1.6e-4, both on the V100 (`results/port-fp16`, `results/port-bf16`). The two loss
