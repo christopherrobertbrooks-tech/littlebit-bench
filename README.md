@@ -87,6 +87,17 @@ sequences of 2,048 tokens, about 850M tokens in all. This V100 trains the 0.6B m
 Runs here are much shorter, and each row says what it was trained on. Night 1 is 24,000 sequences (49M tokens,
 ~5.5 h), with WikiText-2 perplexity logged every 500 steps (`ppl_curve.jsonl`).
 
+Night 1 learning curve so far (1.0 bit, lr 1.6e-4, WikiText-2 perplexity during training):
+
+| step | sequences seen | tokens | wikitext2 PPL |
+| ---: | ---: | ---: | ---: |
+| 0 | 0 | 0.0M | 17,139,636.0 |
+| 500 | 2,000 | 4.1M | 640.9 |
+| 1000 | 4,000 | 8.2M | 100.2 |
+| 1500 | 6,000 | 12.3M | 72.5 |
+| 2000 | 8,000 | 16.4M | 67.2 |
+| 2500 | 10,000 | 20.5M | 53.6 |
+
 ## What had to change for a V100 ([`patches/volta-fp16.patch`](patches/volta-fp16.patch))
 
 Volta has no bf16 hardware. PyTorch still reports bf16 as "supported" on it, and then emulates it about 9x slower.

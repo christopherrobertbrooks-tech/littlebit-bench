@@ -1,0 +1,6 @@
+{"step": 0, "samples": 0, "wiki_ppl": 17139636.0}
+{"step": 500, "samples": 2000, "wiki_ppl": 640.9278564453125}
+{"step": 1000, "samples": 4000, "wiki_ppl": 100.22074127197266}
+{"step": 1500, "samples": 6000, "wiki_ppl": 72.4679183959961}
+{"step": 2000, "samples": 8000, "wiki_ppl": 67.15319061279297}
+{"step": 2500, "samples": 10000, "wiki_ppl": 53.642799377441406}
