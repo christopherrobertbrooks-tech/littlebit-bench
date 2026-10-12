@@ -141,6 +141,26 @@ The upstream recipe (paper + README + `datautils.py`) trains for 5 epochs over C
 sequences of 2,048 tokens, about 850M tokens in all. This V100 trains the 0.6B model at ~2,450 tokens/s, so that recipe would take about **4 days per bit level**.
 Runs here are much shorter, and each row says what it was trained on. Night 1 was 24,000 sequences (49M tokens, 5 h 40 min).
 
+### Continuing a finished model (warm start, 2026-10-12)
+
+Night 1's model was saved bit-packed, so its latent values were gone. The question was whether training can continue
+from its signs and scales alone (`--warm_start_from`, patch item 9). It can.
+
+- **The test:** 400 more steps on 1,600 new sequences (seed 43), lr 4e-5, a fresh optimizer, latents restarted at
+  ±0.03 (`scripts/warm_test.sh`, `results/qwen3-0.6b-b1.0-warm/`).
+- **The result:** perplexity held and edged down. WikiText-2 went 37.64 → 37.52, C4 44.16 → 44.07. Nothing
+  scrambled, so a finished model is a usable starting point for more training.
+- **The catch:** at this learning rate the gain is small, about 0.1 per 400 steps. Big further gains need long
+  runs, which now save resumable checkpoints (patch item 8).
+
+| step | wikitext2 PPL |
+| ---: | ---: |
+| 0 (night 1's model) | 37.64 |
+| 100 | 37.63 |
+| 200 | 37.52 |
+| 300 | 37.55 |
+| 400 | 37.52 |
+
 ## What had to change for a V100 ([`patches/volta-fp16.patch`](patches/volta-fp16.patch))
 
 Volta has no bf16 hardware. PyTorch still reports bf16 as "supported" on it, and then emulates it about 9x slower.
