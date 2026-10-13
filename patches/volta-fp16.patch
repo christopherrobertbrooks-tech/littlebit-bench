@@ -50,7 +50,7 @@ index 446b1ed..b78500a 100644
      # Note: Default values are set to None.
      # This allows `LittleBitModel` to load parameters from config files natively,
 diff --git a/main.py b/main.py
-index d5f6810..174233a 100644
+index d5f6810..53247cc 100644
 --- a/main.py
 +++ b/main.py
 @@ -6,16 +6,15 @@ import json
@@ -92,7 +92,7 @@ index d5f6810..174233a 100644
      parser.add_argument("--quant_func", type=str, default="STEBinary")
      parser.add_argument("--quant_mod", type=str, default="LittleBitLinear")
  
-@@ -84,6 +87,29 @@ def get_args():
+@@ -84,6 +87,33 @@ def get_args():
      parser.add_argument("--use_itq", type=str2bool, default=False)
      parser.add_argument("--itq_n_iter", type=int, default=50)
  
@@ -110,6 +110,10 @@ index d5f6810..174233a 100644
 +    parser.add_argument("--save_total_limit", type=int, default=2)
 +    parser.add_argument("--resume_from", type=str, default=None,
 +                        help="a checkpoint-N directory, or 'latest' for the newest one in this run's save_dir")
++    parser.add_argument("--init_from_checkpoint", type=str, default=None,
++                        help="start from a training checkpoint's latent factors (fresh optimizer and lr schedule)")
++    parser.add_argument("--skip_train_samples", type=int, default=0,
++                        help="skip the first N sequences of the seeded shuffle (e.g. the ones a previous run saw)")
 +    parser.add_argument("--warm_start_from", type=str, default=None,
 +                        help="start from a finished (packed) LittleBit model: its signs and scales")
 +    parser.add_argument("--warm_mag", type=float, default=0.03,
@@ -122,7 +126,7 @@ index d5f6810..174233a 100644
      args = parser.parse_args()
  
      return args
-@@ -105,14 +131,16 @@ def get_training_arguments(args, save_dir):
+@@ -105,14 +135,16 @@ def get_training_arguments(args, save_dir):
          gradient_accumulation_steps=args.gradient_accumulation_steps,
          warmup_ratio=args.warmup_ratio,
          num_train_epochs=args.num_train_epochs,
@@ -143,7 +147,7 @@ index d5f6810..174233a 100644
          adam_beta1=args.adam_beta1,
          adam_beta2=args.adam_beta2,
          deepspeed=args.ds_config_path,
-@@ -125,7 +153,7 @@ def load_student_model(args, device_map, torch_dtype):
+@@ -125,7 +157,7 @@ def load_student_model(args, device_map, torch_dtype):
      model = AutoModelForCausalLM.from_pretrained(
          args.model_id,
          torch_dtype=torch_dtype,
@@ -152,7 +156,7 @@ index d5f6810..174233a 100644
          low_cpu_mem_usage=True,
          trust_remote_code=True,
      )
-@@ -138,11 +166,62 @@ def load_student_model(args, device_map, torch_dtype):
+@@ -138,11 +170,84 @@ def load_student_model(args, device_map, torch_dtype):
      if device_map:
          model.to(device_map if isinstance(device_map, (str, torch.device)) else list(device_map.values())[0])
  
@@ -162,13 +166,35 @@ index d5f6810..174233a 100644
 +            if param.requires_grad and param.dtype != torch.float32:
 +                param.data = param.data.float()
 +
-+    if args.warm_start_from:
++    if args.init_from_checkpoint:
++        init_from_checkpoint(model, args.init_from_checkpoint)
++    elif args.warm_start_from:
 +        warm_start(model, args.warm_start_from, args.warm_mag)
 +
      print_trainable_parameters(model)
      return model
  
  
++def init_from_checkpoint(model, ckpt_dir):
++    """[littlebit-bench] Continue training from a resumable checkpoint's weights: its latent factors, scales and norms
++    exactly as trained (not just signs), with a fresh optimizer and a new lr schedule (unlike --resume_from, which
++    also restores the old schedule and data position)."""
++    from safetensors.torch import load_file
++    sd = {}
++    for f in sorted(Path(ckpt_dir).glob("model*.safetensors")):
++        sd.update(load_file(str(f)))
++    params = dict(model.named_parameters())
++    n = 0
++    for name, t in sd.items():
++        if name in params and params[name].requires_grad:
++            params[name].data.copy_(t.to(params[name].device, params[name].dtype))
++            n += 1
++    missing = [k for k, p in params.items() if p.requires_grad and k not in sd]
++    print(f"INFO: init from {ckpt_dir}: {n} trainable tensors loaded, {len(missing)} missing")
++    if missing:
++        raise RuntimeError(f"checkpoint lacks trainable tensors, e.g. {missing[:3]}")
++
++
 +def warm_start(model, model_dir, mag):
 +    """[littlebit-bench] Continue from a finished LittleBit model. A finished model keeps only the signs of its latent
 +    factors (bit-packed) and its scales; the latent values themselves are gone. So each factor restarts as
@@ -215,7 +241,7 @@ index d5f6810..174233a 100644
      with open(config_path, 'r') as f:
          config = json.load(f)
  
-@@ -166,6 +245,47 @@ def load_teacher_model(args, num_gpus, torch_dtype, config_path="configs/zero3_i
+@@ -166,6 +271,47 @@ def load_teacher_model(args, num_gpus, torch_dtype, config_path="configs/zero3_i
      return teacher_model
  
  
@@ -263,13 +289,15 @@ index d5f6810..174233a 100644
  def setup_trainer(model, teacher_model, tokenizer, datasets, training_args, args):
      trainer = KDTrainer(
          model=model,
-@@ -208,20 +328,37 @@ def main():
+@@ -208,20 +354,39 @@ def main():
  
      logger.info(f"Preparing training data ({args.dataset})...")
      datasets = prepare_dataset(args, tokenizer)
-+    if args.max_train_samples > 0 and args.max_train_samples < len(datasets):
-+        datasets = datasets.shuffle(seed=args.seed).select(range(args.max_train_samples))
-+        logger.info(f"Training on a random subset of {len(datasets)} samples")
++    if args.max_train_samples > 0 and args.skip_train_samples + args.max_train_samples <= len(datasets):
++        datasets = datasets.shuffle(seed=args.seed).select(
++            range(args.skip_train_samples, args.skip_train_samples + args.max_train_samples))
++        logger.info(f"Training on a random subset of {len(datasets)} samples"
++                    f" (skipping the first {args.skip_train_samples} of the shuffle)")
 +
 +    dtypes = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}
 +    model_dtype = dtypes[args.precision]
@@ -306,7 +334,7 @@ index d5f6810..174233a 100644
      save_artifacts(trainer, model, tokenizer, save_dir, args)
  
  
-@@ -240,6 +377,7 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+@@ -240,6 +405,7 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
          final_cpu_state_dict = {}
  
          if use_ds:
@@ -314,7 +342,7 @@ index d5f6810..174233a 100644
              logger.info("DeepSpeed ZeRO-3 enabled. Gathering parameters in groups...")
  
              LAYER_CHUNK_SIZE = 4
-@@ -304,9 +442,10 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+@@ -304,9 +470,10 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
  
              unwrapped_model.config.use_cache = True
  

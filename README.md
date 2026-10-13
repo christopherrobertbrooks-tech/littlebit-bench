@@ -278,7 +278,13 @@ LittleBit trains and evaluates in bf16 everywhere. The patch:
     - **The results:** the broken checkpoint scores 3.6323 in fp16 against 3.6324 in fp32. Night 1's 0.6B model is
       unchanged: 37.6377 vs 37.6381 on WikiText-2.
     - **The scope:** it only runs when the matmul would be fp16, so upstream's bf16/fp32 paths are untouched.
-12. **`eval.py --dtype`** picks fp16/fp32 explicitly. `--results_json` writes the numbers to a file. The perplexity
+12. **Adds `--init_from_checkpoint <checkpoint-N>` and `--skip_train_samples N`.**
+    - `--init_from_checkpoint` continues training from a resumable checkpoint's exact latent weights, with a fresh
+      optimizer and a new lr schedule.
+    - `--skip_train_samples` skips the sequences a previous run already saw, in the same seeded shuffle.
+    - Checked: starting from the 0.6B warm run's checkpoint-400, step 0 scores 37.5217 against the checkpoint's own
+      37.5219, with 2,465 trainable tensors loaded and 0 missing.
+13. **`eval.py --dtype`** picks fp16/fp32 explicitly. `--results_json` writes the numbers to a file. The perplexity
    loss is computed in fp32.
 
 The defaults are unchanged. Without the new flags, upstream's bf16 behaviour is the same.
