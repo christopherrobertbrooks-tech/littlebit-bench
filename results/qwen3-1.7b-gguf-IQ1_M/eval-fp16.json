@@ -1,0 +1,79 @@
+{
+  "args": {
+    "use_accelerator": false,
+    "model_id": "/mnt/steam/littlebit/runs/qwen3-1.7b-gguf-IQ1_M",
+    "fp_eval": true,
+    "dtype": "fp16",
+    "results_json": "/mnt/steam/littlebit/runs/qwen3-1.7b-gguf-IQ1_M/eval-fp16.json",
+    "quant_func": null,
+    "quant_mod": null,
+    "num_expert": null,
+    "is_po2": null,
+    "residual": null,
+    "split_dim": null,
+    "eff_bit": null,
+    "kv_factor": null,
+    "use_itq": null,
+    "itq_n_iter": null,
+    "ppl_task": "wikitext2,c4",
+    "zeroshot_task": "boolq,piqa,hellaswag,winogrande,arc_easy,arc_challenge,openbookqa",
+    "batch_size": 8,
+    "num_fewshot": 0,
+    "limit": -1,
+    "seqlen": 2048
+  },
+  "dtype": "torch.float16",
+  "results": {
+    "wikitext2": {
+      "ppl": 90.98533630371094
+    },
+    "c4": {
+      "ppl": 105.14117431640625
+    },
+    "arc_challenge": {
+      "alias": "arc_challenge",
+      "acc,none": 0.19197952218430034,
+      "acc_stderr,none": 0.01150959890659822,
+      "acc_norm,none": 0.24146757679180889,
+      "acc_norm_stderr,none": 0.012506564839739446
+    },
+    "arc_easy": {
+      "alias": "arc_easy",
+      "acc,none": 0.36069023569023567,
+      "acc_stderr,none": 0.009853512108416932,
+      "acc_norm,none": 0.3522727272727273,
+      "acc_norm_stderr,none": 0.009801753933112646
+    },
+    "boolq": {
+      "alias": "boolq",
+      "acc,none": 0.40672782874617736,
+      "acc_stderr,none": 0.008591549022900843
+    },
+    "hellaswag": {
+      "alias": "hellaswag",
+      "acc,none": 0.2811192989444334,
+      "acc_stderr,none": 0.0044862684706668725,
+      "acc_norm,none": 0.3140808603863772,
+      "acc_norm_stderr,none": 0.004632001732332886
+    },
+    "openbookqa": {
+      "alias": "openbookqa",
+      "acc,none": 0.138,
+      "acc_stderr,none": 0.015439843831953423,
+      "acc_norm,none": 0.258,
+      "acc_norm_stderr,none": 0.019586711785215868
+    },
+    "piqa": {
+      "alias": "piqa",
+      "acc,none": 0.573993471164309,
+      "acc_stderr,none": 0.011537375448519308,
+      "acc_norm,none": 0.5647442872687704,
+      "acc_norm_stderr,none": 0.011567608588759519
+    },
+    "winogrande": {
+      "alias": "winogrande",
+      "acc,none": 0.5240726124704025,
+      "acc_stderr,none": 0.014036189665395169
+    }
+  }
+}

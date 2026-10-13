@@ -1,0 +1,15 @@
+{"step": 0, "samples": 0, "wiki_ppl": 52615060.0}
+{"step": 500, "samples": 2000, "wiki_ppl": 496.95806884765625}
+{"step": 1000, "samples": 4000, "wiki_ppl": 69.01724243164062}
+{"step": 1500, "samples": 6000, "wiki_ppl": 54.62281036376953}
+{"step": 1500, "samples": 6000, "wiki_ppl": 54.623069763183594}
+{"step": 2000, "samples": 8000, "wiki_ppl": 55.63983917236328}
+{"step": 2500, "samples": 10000, "wiki_ppl": 41.86728286743164}
+{"step": 2500, "samples": 10000, "wiki_ppl": 41.86728286743164}
+{"step": 3000, "samples": 12000, "wiki_ppl": 36.96752166748047}
+{"step": 3500, "samples": 14000, "wiki_ppl": 34.11952590942383}
+{"step": 4000, "samples": 16000, "wiki_ppl": 31.707279205322266}
+{"step": 4500, "samples": 18000, "wiki_ppl": 29.715286254882812}
+{"step": 5000, "samples": 20000, "wiki_ppl": 28.902624130249023}
+{"step": 5500, "samples": 22000, "wiki_ppl": 27.77395248413086}
+{"step": 6000, "samples": 24000, "wiki_ppl": 27.047924041748047}

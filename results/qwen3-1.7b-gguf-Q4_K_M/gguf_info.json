@@ -1,0 +1,11 @@
+{
+  "gguf": "Q4_K_M.gguf",
+  "body_bits_per_weight": 4.80078125,
+  "body_weights": 1409286144,
+  "gguf_bytes": 2096816768,
+  "types_by_weights": {
+    "Q4_K": 1203765248,
+    "Q6_K": 205520896
+  },
+  "embeddings": "F16"
+}

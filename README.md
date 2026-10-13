@@ -1,10 +1,13 @@
 # LittleBit on a Tesla V100: how much quality is left below 1 bit per weight?
 
-**Status (2026-10-12): night 1 done.**
+**Status (2026-10-13): Qwen3-0.6B and Qwen3-1.7B done at 1.0 bit.**
 
-- **Result:** Qwen3-0.6B at 1.0 bit per weight, trained for one night (49M tokens), reaches the perplexity of
-  llama.cpp's ~3-bit Q2_K. Its zero-shot accuracy is lower, only a little above chance.
-- **Next:** bigger models and the bits below 1.0.
+- **Result:** each was trained for one night's budget (49M tokens, ~6% of the upstream recipe). At 1 bit they write
+  far more fluently than llama.cpp's quants at 1.7-2.1 bits, but keep only about a quarter of the original's quiz
+  skill. On the quizzes, the 1-bit 1.7B ties llama.cpp's IQ2_XXS, which uses twice the bits.
+- **Bigger helped fluency** (1.80x -> 1.62x of the original's perplexity) but not knowledge (23% -> 25% kept).
+- **Found and fixed along the way:** an fp16 overflow inside the 1-bit layer, reported upstream as
+  [SamsungLabs/LittleBit#24](https://github.com/SamsungLabs/LittleBit/issues/24).
 
 [LittleBit](https://github.com/SamsungLabs/LittleBit) (Samsung Labs, NeurIPS 2025) and LittleBit-2 (ICML 2026) compress
 an LLM's weights to **1.0 down to 0.1 bits per weight**. Each weight matrix becomes two low-rank factors stored as
@@ -160,6 +163,66 @@ from its signs and scales alone (`--warm_start_from`, patch item 9). It can.
 | 200 | 37.52 |
 | 300 | 37.55 |
 | 400 | 37.52 |
+
+## Results: Qwen3-1.7B
+
+| weights | bits/weight (body) | wikitext2 PPL | c4 PPL | zero-shot avg (7 tasks) | trained on |
+| :--- | ---: | ---: | ---: | ---: | :--- |
+| fp16 (uncompressed) | 16 | 16.67 | 19.21 | 56.8% | -- |
+| llama.cpp Q4_K_M | 4.80 | 16.95 | 19.43 | 55.4% | -- |
+| llama.cpp Q3_K_M | 3.85 | 17.52 | 20.28 | 53.3% | -- |
+| llama.cpp Q2_K | 2.93 | 22.59 | 24.24 | 49.8% | -- |
+| llama.cpp IQ2_XXS | 2.10 | 46.87 | 56.32 | 41.7% | -- |
+| llama.cpp IQ1_M | 1.84 | 90.99 | 105.14 | 35.4% | -- |
+| llama.cpp IQ1_S | 1.68 | 248.94 | 226.05 | 35.5% | -- |
+| **LittleBit-2, 1.0 bit** | **1.01** | **27.04** | **33.14** | **40.9%** | 24,000 sequences (49M tokens), 8-bit AdamW |
+| *chance* | | | | *35.7%* | |
+
+Zero-shot accuracy per task (plain `acc`, 0-shot):
+
+| weights | boolq | piqa | hellaswag | winogrande | arc_easy | arc_challenge | openbookqa |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| fp16 | 77.5 | 72.4 | 46.2 | 60.9 | 72.2 | 39.9 | 28.4 |
+| llama.cpp Q2_K (2.93 bits) | 71.6 | 66.9 | 40.1 | 54.8 | 62.2 | 32.0 | 20.8 |
+| llama.cpp IQ2_XXS (2.10 bits) | 62.8 | 60.9 | 31.7 | 53.9 | 44.2 | 22.2 | 16.2 |
+| LittleBit 1.0 bit | 62.0 | 62.7 | 30.3 | 51.3 | 44.1 | 19.5 | 16.4 |
+
+What this says:
+
+- **Fluency: 1 bit lands between llama.cpp's 2- and 3-bit quants.**
+  - Perplexity 27.0 is 1.62x the original. The 0.6B was at 1.80x, so the bigger model held up better.
+  - It's far better than llama.cpp at 1.7-2.1 bits (47-249).
+  - It no longer matches Q2_K (22.6 at 2.93 bits), as it did on the 0.6B. llama.cpp's quants also improve with size.
+- **Knowledge: the 1-bit model ties IQ2_XXS task by task, at half the bits.**
+  - It keeps 5.2 of the original's 21.1 points above chance (25%). The 0.6B kept 23%.
+  - Q2_K keeps 67%; IQ1_M keeps none.
+- **Size: the compressed layers are 1.011 bits per weight** (1,409M weights, 170 MiB instead of 2.69 GB in fp16).
+  - The whole file is 1.36 GB against the original's 3.8 GB.
+  - At this size the embeddings and lm_head (594 MiB each; tied, so one copy could go) are most of it.
+- **Training:**
+  - fp16 with the overflow fix (patch item 11); NaN from step ~1,770 before it, none after.
+  - 8-bit AdamW (patch item 10) to fit 32 GB; batch 1 x 4 accumulation, lr 1.6e-4.
+  - Resumed twice from saved checkpoints.
+  - About 12 h of training (6.5 s/step before the fix, 7.6 after), plus ~1 h lost to the NaN.
+- **The fp16 round trip** of the llama.cpp path reproduces the original again (16.6704 / 19.2139).
+
+Learning curve (WikiText-2 during training; `results/qwen3-1.7b-b1.0/ppl_curve.jsonl`; the pre-fix curve with its NaN
+point is kept as `ppl_curve.before-fix.jsonl`):
+
+| step | wikitext2 PPL | vs original |
+| ---: | ---: | ---: |
+| 500 | 497.0 | 29.81x |
+| 1000 | 69.0 | 4.14x |
+| 1500 | 54.6 | 3.28x |
+| 2000 | 55.6 | 3.34x |
+| 2500 | 41.9 | 2.51x |
+| 3000 | 37.0 | 2.22x |
+| 3500 | 34.1 | 2.05x |
+| 4000 | 31.7 | 1.90x |
+| 4500 | 29.7 | 1.78x |
+| 5000 | 28.9 | 1.73x |
+| 5500 | 27.8 | 1.67x |
+| 6000 | 27.0 | 1.62x |
 
 ## What had to change for a V100 ([`patches/volta-fp16.patch`](patches/volta-fp16.patch))
 
