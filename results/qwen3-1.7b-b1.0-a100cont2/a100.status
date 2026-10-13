@@ -1,0 +1,5 @@
+2026-10-13 11:19:21 checkpoint verified
+2026-10-13 11:19:21 training qwen3-1.7b-b1.0-a100cont: SAMPLES=32000
+2026-10-13 12:55:12 stopped by hand at step ~2000: lr 8e-5 made it worse (27.0 -> 31.9 -> 38.2); restarting at lr 2e-5
+2026-10-13 12:55:12 training qwen3-1.7b-b1.0-a100cont2: SAMPLES=27200
+2026-10-13 18:08:47 trained

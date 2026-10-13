@@ -176,6 +176,7 @@ from its signs and scales alone (`--warm_start_from`, patch item 9). It can.
 | llama.cpp IQ1_M | 1.84 | 90.99 | 105.14 | 35.4% | -- |
 | llama.cpp IQ1_S | 1.68 | 248.94 | 226.05 | 35.5% | -- |
 | **LittleBit-2, 1.0 bit** | **1.01** | **27.04** | **33.14** | **40.9%** | 24,000 sequences (49M tokens), 8-bit AdamW |
+| **LittleBit-2, 1.0 bit, + A100 continuation** | **1.01** | **25.46** | **31.21** | **41.4%** | + 27,200 new sequences (56M tokens) on a rented A100 |
 | *chance* | | | | *35.7%* | |
 
 Zero-shot accuracy per task (plain `acc`, 0-shot):
@@ -186,6 +187,7 @@ Zero-shot accuracy per task (plain `acc`, 0-shot):
 | llama.cpp Q2_K (2.93 bits) | 71.6 | 66.9 | 40.1 | 54.8 | 62.2 | 32.0 | 20.8 |
 | llama.cpp IQ2_XXS (2.10 bits) | 62.8 | 60.9 | 31.7 | 53.9 | 44.2 | 22.2 | 16.2 |
 | LittleBit 1.0 bit | 62.0 | 62.7 | 30.3 | 51.3 | 44.1 | 19.5 | 16.4 |
+| LittleBit 1.0 bit + A100 continuation | 62.1 | 63.3 | 30.8 | 52.2 | 44.9 | 20.1 | 16.0 |
 
 What this says:
 
@@ -223,6 +225,50 @@ point is kept as `ppl_curve.before-fix.jsonl`):
 | 5000 | 28.9 | 1.73x |
 | 5500 | 27.8 | 1.67x |
 | 6000 | 27.0 | 1.62x |
+
+### Training further on a rented A100 (2026-10-13)
+
+The question: is the 1-bit 1.7B limited by training time, or by the 1-bit budget itself?
+
+**What ran:**
+- The finished model was continued with `--init_from_checkpoint` (exact latents, fresh learning-rate schedule).
+- It saw 27,200 sequences the V100 run never saw (`--skip_train_samples 32000`), for 6,800 steps.
+- Hardware: a Thunder Compute A100 80GB, in bf16, with plain AdamW, batch 2 x 2, peak lr 2e-5 (cosine).
+  ITQ init was off: that GPU is network-attached and ITQ took 23 min there.
+- 5 h 11 min of training, about $8.60 of a $10 credit.
+- A guard script copied the results home and deleted the instance when training finished.
+- A first try at peak lr 8e-5 made it worse (27.0 -> 31.9 -> 38.2 by step 2,000) and was stopped
+  (`results/qwen3-1.7b-b1.0-a100cont-lr8e-5-stopped/`).
+
+| step | wikitext2 PPL |
+| ---: | ---: |
+| 0 (the finished V100 model) | 27.04 |
+| 1000 | 28.73 |
+| 2000 | 28.81 |
+| 3000 | 28.40 |
+| 4000 | 27.15 |
+| 5000 | 27.09 |
+| 6000 | 26.00 |
+| 6800 | 25.47 |
+
+The restart first costs ground, then the low-learning-rate tail recovers it and goes further. Most of the gain came
+in the last 1,800 steps, as in the first run.
+
+**Evaluating it:** the A100 saved bf16 weights, which the V100 runs about 9x slower. So the stored bf16 tensors were
+converted to fp16 for evaluation:
+- none exceed the fp16 range;
+- 582 of 625M values become 0, almost all in the embeddings.
+
+The converted model scores 25.46 on WikiText-2 on the V100, matching the A100's own 25.47, so the conversion is
+faithful. The original bf16 file is kept.
+
+**Result:**
+- **Fluency improved 6%:** 27.04 -> 25.46 (WikiText-2) and 33.14 -> 31.21 (C4).
+- **Knowledge barely moved:** 40.9% -> 41.4%.
+  - 6 of 7 tasks rose by 0.1-0.9, within each task's ~1-1.4 point standard error, and openbookqa fell 0.4.
+  - It keeps 27% of the original's above-chance skill, against 25% before.
+- **At this size, more training mostly buys fluency, not knowledge.** Model capacity at 1 bit, rather than training
+  time, looks like the limit.
 
 ## What had to change for a V100 ([`patches/volta-fp16.patch`](patches/volta-fp16.patch))
 

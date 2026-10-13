@@ -1,0 +1,11 @@
+{
+  "quant_func": "SmoothSign",
+  "eff_bit": 1.0,
+  "split_dim": 1024,
+  "residual": true,
+  "kv_factor": 1.0,
+  "min_split_dim": 8,
+  "quant_mod": "LittleBitLinear",
+  "use_itq": false,
+  "itq_n_iter": 50
+}
