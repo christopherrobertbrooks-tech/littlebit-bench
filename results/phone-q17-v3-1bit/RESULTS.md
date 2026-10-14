@@ -18,6 +18,9 @@ and every detail right. "+checker" = the app's checker applied to the same answe
 | LittleBit 1-bit, step 0 (no phone training) | ~1.0 | 0 | 0 | 0 | 0 | 0 |
 | for scale: q06-v3 (Qwen3-0.6B + LoRA) Q4_K_M, 397 MB | ~4.8 | 94% | | | | |
 
+The phone assistant (its model, training commands and quizzes) is a private project, so this run cannot be
+reproduced from this repo alone; scripts/phone/ shows exactly how it was done.
+
 llama.cpp quants: imatrix from the same 4,315 training commands (runs/q17-v3/lowbit/make.sh on the gateway).
 
 - 1 bit learns the job fast (0 -> 74% in 21 min) and then plateaus (loss flat over epochs 2-6; stage 2 +2 points).
