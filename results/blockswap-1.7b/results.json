@@ -1,0 +1,217 @@
+{
+ "configs": [
+  {
+   "config": "1-bit as trained (nothing swapped)",
+   "swapped": 0,
+   "ppl": 23.701284408569336,
+   "extra_fp16_MiB": 0,
+   "samples": [
+    "The history of the city of Rome, and the city's role in the Roman Empire. The city's role in the Roman Empire is discussed in the following sections. The city's role in the Roman Empire is discussed in the following sections. The city's role in the Roman Empire is discussed in the following sections. The city's role",
+    "To make a good cup of coffee, you should use a cup of water, and then add a bit of sugar to make the coffee. This is a simple way to make a cup of coffee, and it's a good way to make a cup of coffee. So, the first thing you need to do is to make a cup of coffee,",
+    "Once upon a time, a small robot, a human, and a human, and a human, and a human, and a human, and a human, and a human, and a human, and a human, and a human, and a human, and a human, and a human, and a human, and a human,"
+   ]
+  },
+  {
+   "config": "everything back to fp16 (the original)",
+   "swapped": 196,
+   "ppl": 15.232308387756348,
+   "extra_fp16_MiB": 2688,
+   "samples": [
+    "The history of the city of Rome is a story of conquest, of power, of the rise and fall of empires, of the struggle for survival and the triumph of the human spirit. It is a story of the people who lived in the city, of the people who ruled it, and of the people who were ruled by it",
+    "To make a good cup of coffee, you should use the following steps: 1. Boil water and put it in a cup. 2. Add a cup of coffee beans to the cup. 3. Add a cup of milk to the cup. 4. Add a cup of sugar to the cup. 5. Add a",
+    "Once upon a time, a small robot was walking on the moon. It was a robot that could not move, but could think. It was a robot that could not speak, but could think. It was a robot that could not speak, but could think. It was a robot that could not speak, but could think. It was"
+   ]
+  },
+  {
+   "config": "first block (0)",
+   "swapped": 7,
+   "ppl": 25.901968002319336,
+   "extra_fp16_MiB": 96,
+   "samples": [
+    "The history of the city of Rome, the city of Rome, the city of Rome, the city of Rome, the city of Rome, the city of Rome, the city of Rome, the city of Rome, the city of Rome, the city of Rome, the city of Rome, the city of Rome, the city of Rome",
+    "To make a good cup of coffee, you should first make sure that the coffee is properly ground. If you're not sure, you can use a coffee grinder or a coffee maker to grind the coffee. If you're not sure, you can use a coffee grinder or a coffee maker to grind the coffee. If you're not sure, you can",
+    "Once upon a time, a small robot, a small, and a small, and a small, and a small, and a small, and a small, and a small, and a small, and a small, and a small, and a small, and a small, and a small, and a small, and a small,"
+   ]
+  },
+  {
+   "config": "last block (27)",
+   "swapped": 7,
+   "ppl": 40.55622863769531,
+   "extra_fp16_MiB": 96,
+   "samples": [
+    "The history of the city of Rome, and the city's history in the 19th century. The city's history is a complex and complex story, and the city's history is a complex and complex story. The city's history is a complex and complex story, and the city's history is a complex and complex story.",
+    "To make a good cup of coffee, you should be able to do it in a few minutes. But if you're not a coffee enthusiast, you might want to try a few different types of coffee. For example, you can try a cup of coffee with a cup of tea, or a cup of coffee with a cup of tea. You can",
+    "Once upon a time, a small robot, a small, but very powerful, and very intelligent, was in the world, and it was the first time that the world was in a state of being, and the world was in a state of being, and the world was in a state of being, and the world was in a state"
+   ]
+  },
+  {
+   "config": "first + last (0, 27)",
+   "swapped": 14,
+   "ppl": 44.44447708129883,
+   "extra_fp16_MiB": 192,
+   "samples": [
+    "The history of the city of Rome, and the city's history, and the city's history, and the city's history, and the city's history, and the city's history, and the city's history, and the city's history, and the city's history, and the city's history, and the city's history",
+    "To make a good cup of coffee, you should be able to make a good cup of coffee. But the problem is that the coffee is not the best. It is not the best. It is not the best. It is not the best. It is not the best. It is not the best. It is not the best. It is",
+    "Once upon a time, a small robot, a small dog, or a small animal, was found in a park. The person who had been in the park for a long time, and the person who had been in the park for a long time, and the person who had been in the park for a long time, and the person"
+   ]
+  },
+  {
+   "config": "first 4 blocks (0-3)",
+   "swapped": 28,
+   "ppl": 26.311107635498047,
+   "extra_fp16_MiB": 384,
+   "samples": [
+    "The history of the city of Rome is a complex one. The city of Rome is a city of great importance, and it is the most important city in the world. The city of Rome is the most important city in the world. The city of Rome is the most important city in the world. The city of Rome is the most",
+    "To make a good cup of coffee, you should have a cup of coffee, and you should have a cup of coffee, and you should have a cup of coffee, and you should have a cup of coffee, and you should have a cup of coffee, and you should have a cup of coffee, and you should have a cup of coffee,",
+    "Once upon a time, a small robot named Mandy, who is a very clever and very intelligent robot, is a very clever and very intelligent robot, and he is a very clever and very intelligent robot, and he is a very clever and very intelligent robot, and he is a very clever and very intelligent robot, and he is a"
+   ]
+  },
+  {
+   "config": "last 4 blocks (24-27)",
+   "swapped": 28,
+   "ppl": 29.673616409301758,
+   "extra_fp16_MiB": 384,
+   "samples": [
+    "The history of the city of Rome, and the role of the city in the development of the Roman Empire. The city of Rome is a city of history, and it is the heart of the Roman Empire. The city of Rome is the cradle of the Roman Empire, and it is the seat of the Roman Empire. The city",
+    "To make a good cup of coffee, you should use a good coffee mug. The best coffee mug is a mug that is not only good for the coffee, but also for the coffee. The best coffee mug is a mug that is not only good for the coffee, but also for the coffee. The best coffee mug is a mug that is not",
+    "Once upon a time, a small robot, which is a very small, but very powerful, and very fast, and which is a very powerful, and very fast, and very fast, and which is a very powerful, and very fast, and very fast, and which is a very powerful, and very fast, and very fast,"
+   ]
+  },
+  {
+   "config": "all attention layers",
+   "swapped": 112,
+   "ppl": 8524.927734375,
+   "extra_fp16_MiB": 672,
+   "samples": [
+    "The history of the city of Rome, and the city of the city of the the the of the the of the the of the the of the of the of the of the of the of the of the of the of the of the of of the of of of of of of of of of of of of of of of of of",
+    "To make a good cup of coffee, you should have a good, but it is a\n, I have a, a, I, I,,, the,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+    "Once upon a time, a small robot, the a a the, the,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+   ]
+  },
+  {
+   "config": "all MLP layers",
+   "swapped": 84,
+   "ppl": 2339954.0,
+   "extra_fp16_MiB": 2016,
+   "samples": [
+    "The history of the city of Rome, but the the the the the the the the the the the the here here, the the they here, here, here, here, here, here, here, here, here, here, here, here, here, here, here, here, here, here, here, here,",
+    "To make a good cup of coffee, you should be a good cup, but you can be a good cup? but you can be a good cup? but you can be a good cup? but you can be a good cup? but you can be a good cup? but you can be a good good cup, but you can be a good",
+    "Once upon a time, a small robot, a small robot, a small robot, a small robot, a small robot, a small robot, a small robot, a small robot, a small robot, a small robot, a small robot, a small robot, a small robot, a small robot, a small robot, a small robot"
+   ]
+  }
+ ],
+ "sweep": [
+  {
+   "block": 0,
+   "ppl": 25.901968002319336
+  },
+  {
+   "block": 1,
+   "ppl": 170.26422119140625
+  },
+  {
+   "block": 2,
+   "ppl": 32.68048858642578
+  },
+  {
+   "block": 3,
+   "ppl": 33.72542953491211
+  },
+  {
+   "block": 4,
+   "ppl": 28.731287002563477
+  },
+  {
+   "block": 5,
+   "ppl": 37.557193756103516
+  },
+  {
+   "block": 6,
+   "ppl": 27.766462326049805
+  },
+  {
+   "block": 7,
+   "ppl": 26.56576919555664
+  },
+  {
+   "block": 8,
+   "ppl": 25.409494400024414
+  },
+  {
+   "block": 9,
+   "ppl": 25.319927215576172
+  },
+  {
+   "block": 10,
+   "ppl": 25.34052085876465
+  },
+  {
+   "block": 11,
+   "ppl": 24.780061721801758
+  },
+  {
+   "block": 12,
+   "ppl": 24.094606399536133
+  },
+  {
+   "block": 13,
+   "ppl": 23.9387149810791
+  },
+  {
+   "block": 14,
+   "ppl": 24.055105209350586
+  },
+  {
+   "block": 15,
+   "ppl": 24.22084617614746
+  },
+  {
+   "block": 16,
+   "ppl": 24.26848793029785
+  },
+  {
+   "block": 17,
+   "ppl": 24.169620513916016
+  },
+  {
+   "block": 18,
+   "ppl": 24.348617553710938
+  },
+  {
+   "block": 19,
+   "ppl": 24.483705520629883
+  },
+  {
+   "block": 20,
+   "ppl": 24.38039207458496
+  },
+  {
+   "block": 21,
+   "ppl": 24.61767578125
+  },
+  {
+   "block": 22,
+   "ppl": 24.285152435302734
+  },
+  {
+   "block": 23,
+   "ppl": 24.635290145874023
+  },
+  {
+   "block": 24,
+   "ppl": 24.446428298950195
+  },
+  {
+   "block": 25,
+   "ppl": 24.400012969970703
+  },
+  {
+   "block": 26,
+   "ppl": 24.26219940185547
+  },
+  {
+   "block": 27,
+   "ppl": 40.55622863769531
+  }
+ ]
+}
