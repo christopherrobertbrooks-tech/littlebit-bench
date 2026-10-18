@@ -270,6 +270,45 @@ faithful. The original bf16 file is kept.
 - **At this size, more training mostly buys fluency, not knowledge.** Model capacity at 1 bit, rather than training
   time, looks like the limit.
 
+### Where does 1 bit do its damage? Swapping original blocks back in (2026-10-18)
+
+The question: is the 1-bit model's damage in a few places that could be kept at higher precision? The embeddings,
+`lm_head` and norms are already fp16 in these models (LittleBit only compresses the 7 linear layers in each of the 28
+blocks), so the test is on the blocks: chosen layers of the A100-continued 1-bit model are swapped back to the
+**original** fp16 weights at inference time, with no training
+([`scripts/blockswap/blockswap.py`](scripts/blockswap/blockswap.py)). Scored on WikiText-2 (the first 40 windows of
+2048 tokens, LittleBit's own eval code), with three greedy sample paragraphs per setting
+([`results/blockswap-1.7b/samples.md`](results/blockswap-1.7b/samples.md)).
+
+| swapped back to the original fp16 | WikiText-2 PPL (40 windows) |
+| --- | ---: |
+| nothing (1-bit as trained) | **23.70** |
+| everything (the original model) | 15.23 |
+| block 0 / last block (27) / both | 25.90 / 40.56 / 44.44 |
+| blocks 0-3 / 24-27 | 26.31 / 29.67 |
+| every attention layer | 8,525 |
+| every MLP layer | 2,339,954 |
+
+Each block swapped back on its own:
+
+| blocks | PPL with that block back | |
+| --- | ---: | --- |
+| 1 | 170.3 | rewritten the most |
+| 0, 2-7 | 25.9-37.6 | heavily rewritten |
+| 8-11 | 24.8-25.4 | |
+| 12-26 | 23.9-24.6 | close to the original |
+| 27 (last) | 40.6 | heavily rewritten |
+
+- **No block helps.** Every swap scores worse than the 1-bit model as trained (the best, block 13, is 23.94), and
+  swapping whole groups breaks it outright. The trained 1-bit model is not the original plus noise: its blocks were
+  re-learned to fit each other, and an original block no longer fits its neighbours.
+- **Training rewrote the start and the end.** Blocks 0-7 and the last block are where an original block fits worst;
+  the middle (12-26) barely minds the swap.
+- **The samples read the same way:** the 1-bit model writes on-topic sentences but falls into loops sooner than the
+  original (which also loops under greedy decoding); the big swaps turn it into "the a a the, the,,,,".
+- **Next:** train a 1-bit model with blocks 0-7 and 27 kept at 2 bits from the start (about +7% in size), with the same
+  data, seed and learning rate, and compare at the same steps.
+
 ## What had to change for a V100 ([`patches/volta-fp16.patch`](patches/volta-fp16.patch))
 
 Volta has no bf16 hardware. PyTorch still reports bf16 as "supported" on it, and then emulates it about 9x slower.
