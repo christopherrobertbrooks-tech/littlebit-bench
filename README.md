@@ -407,3 +407,23 @@ listed above, and each changed spot in the patch is marked `[littlebit-bench]`.
 
 **AI assistance:** the setup, the patch and the runs were done with an AI coding assistant (Claude, by Anthropic). A
 person directed the work and reviewed the results. Every number here comes from a log or JSON file under `results/`.
+
+## Closing note (2026-10-19)
+
+The last run here gave Qwen3-1.7B's most-damaged blocks (0-7 and 27, found by the block swap above) 2 bits from the
+start and kept the rest at 1 bit, with the same recipe, data and seed as the 1-bit run
+(`--eff_bit_layers "0-7,27:2.0"`, [patches/mixed-bits.patch](patches/mixed-bits.patch),
+[scripts/run-1.7b-mix.sh](scripts/run-1.7b-mix.sh), [results/qwen3-1.7b-b1.0-mix2](results/qwen3-1.7b-b1.0-mix2)):
+
+| | file | body bits/weight | WikiText-2 | C4 | zero-shot avg (7 tasks) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Qwen3-1.7B, fp16 | 4.1 GB | 16 | 16.7 | 19.2 | 56.8% |
+| mixed (blocks 0-7 + 27 at 2 bits) | 1.48 GB | 1.33 | **23.4** | **29.0** | **42.8%** |
+| 1-bit | 1.42 GB | 1.01 | 27.0 | 33.1 | 40.9% |
+| *chance* | | | | | *35.7%* |
+
+The mixed model beats plain 1-bit on every measure for a 4% bigger file, because the embeddings and the LM head are
+most of the file either way. But it still recovers only about a third of the full model's above-chance skill, so
+none of these compressed models is usable for anything. The same Qwen3-1.7B at ordinary 4-bit precision handled 96%
+of a phone-command test after fine-tuning, so at this size 1-bit simply costs too much. Each run also takes about 14
+hours on a V100, so this series ends here. The code and the results stay for anyone who wants to try the method.
