@@ -1,0 +1,6 @@
+2026-10-18 23:13:18 training qwen3-1.7b-b1.0-mix2 (blocks 0-7,27 at 2.0 bits, the rest 1.0)
+2026-10-19 08:45:52 training qwen3-1.7b-b1.0-mix2 (blocks 0-7,27 at 2.0 bits, the rest 1.0)
+2026-10-19 15:11:24 trained
+2026-10-19 15:15:35 qwen3-1.7b-b1.0-mix2 eval FAILED
+2026-10-19 15:15:35 run-1.7b-mix finished
+2026-10-19 16:36:38 qwen3-1.7b-b1.0-mix2 eval done (rerun)
