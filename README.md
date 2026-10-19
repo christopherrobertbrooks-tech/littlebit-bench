@@ -392,22 +392,6 @@ python3 scripts/summarize.py                                            # the re
 Environment: Ubuntu, i7-13700KF, 16 GB RAM, Tesla V100-PCIE-32GB. Python 3.12, torch 2.6.0+cu124, transformers 4.51.3,
 datasets 3.4.1, lm-eval 0.4.8.
 
-## Credit and licence
-
-- **LittleBit: Ultra Low-Bit Quantization via Latent Factorization.** Banseok Lee, Dongkyu Kim, Youngcheon You,
-  Youngmin Kim. NeurIPS 2025. [arXiv:2506.13771](https://arxiv.org/abs/2506.13771)
-- **LittleBit-2: Maximizing the Spectral Energy Gain in Sub-1-Bit LLMs via Latent Geometry Alignment.** Banseok Lee,
-  Youngmin Kim. ICML 2026. [arXiv:2603.00042](https://arxiv.org/abs/2603.00042)
-- Code: [SamsungLabs/LittleBit](https://github.com/SamsungLabs/LittleBit), licensed
-  [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/).
-
-`patches/volta-fp16.patch` modifies Samsung's code, so it is under the same CC BY-NC 4.0 licence. Everything else in
-this repo is offered under the same terms, for simplicity. **Non-commercial use only.** Changes from upstream are
-listed above, and each changed spot in the patch is marked `[littlebit-bench]`.
-
-**AI assistance:** the setup, the patch and the runs were done with an AI coding assistant (Claude, by Anthropic). A
-person directed the work and reviewed the results. Every number here comes from a log or JSON file under `results/`.
-
 ## Closing note (2026-10-19)
 
 The last run here gave Qwen3-1.7B's most-damaged blocks (0-7 and 27, found by the block swap above) 2 bits from the
@@ -427,3 +411,19 @@ most of the file either way. But it still recovers only about a third of the ful
 none of these compressed models is usable for anything. The same Qwen3-1.7B at ordinary 4-bit precision handled 96%
 of a phone-command test after fine-tuning, so at this size 1-bit simply costs too much. Each run also takes about 14
 hours on a V100, so this series ends here. The code and the results stay for anyone who wants to try the method.
+
+## Credit and licence
+
+- **LittleBit: Ultra Low-Bit Quantization via Latent Factorization.** Banseok Lee, Dongkyu Kim, Youngcheon You,
+  Youngmin Kim. NeurIPS 2025. [arXiv:2506.13771](https://arxiv.org/abs/2506.13771)
+- **LittleBit-2: Maximizing the Spectral Energy Gain in Sub-1-Bit LLMs via Latent Geometry Alignment.** Banseok Lee,
+  Youngmin Kim. ICML 2026. [arXiv:2603.00042](https://arxiv.org/abs/2603.00042)
+- Code: [SamsungLabs/LittleBit](https://github.com/SamsungLabs/LittleBit), licensed
+  [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/).
+
+`patches/volta-fp16.patch` modifies Samsung's code, so it is under the same CC BY-NC 4.0 licence. Everything else in
+this repo is offered under the same terms, for simplicity. **Non-commercial use only.** Changes from upstream are
+listed above, and each changed spot in the patch is marked `[littlebit-bench]`.
+
+**AI assistance:** the setup, the patch and the runs were done with an AI coding assistant (Claude, by Anthropic). A
+person directed the work and reviewed the results. Every number here comes from a log or JSON file under `results/`.
