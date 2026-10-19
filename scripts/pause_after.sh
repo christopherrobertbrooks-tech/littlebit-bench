@@ -8,11 +8,12 @@ name=$1; step=$2; deadline=$3; queue=$4
 dir=$RUNS/$name; status=$RUNS/$name.pause.log
 say() { echo "$(date '+%F %T') $*" | tee -a "$status"; }
 at=$(tr '\r' '\n' < "$dir/train.log" 2>/dev/null | grep -ao ' [0-9]*/[0-9]* \[' | tail -1 | tr -dc '0-9/' | cut -d/ -f1)
-say "waiting for checkpoint-$step (now at step ${at:-?}), deadline $deadline"
+dl=$(date -d "$deadline" +%s); [ "$dl" -le "$(date +%s)" ] && dl=$((dl + 86400))   # a deadline past midnight is tomorrow's
+say "waiting for checkpoint-$step (now at step ${at:-?}), deadline $(date -d "@$dl" '+%F %H:%M')"
 while :; do
     at=$(tr '\r' '\n' < "$dir/train.log" | grep -ao ' [0-9]*/[0-9]* \[' | tail -1 | tr -dc '0-9/' | cut -d/ -f1)
     if [ -f "$dir/checkpoint-$step/trainer_state.json" ] && [ "${at:-0}" -gt "$step" ]; then say "checkpoint-$step written, step $at"; break; fi
-    if [ "$(date +%H%M)" -ge "${deadline/:/}" ]; then say "deadline $deadline reached at step ${at:-?}"; break; fi
+    if [ "$(date +%s)" -ge "$dl" ]; then say "deadline $deadline reached at step ${at:-?}"; break; fi
     sleep 20
 done
 q=$(pgrep -f "[b]ash .*scripts/$queue"); t=$(pgrep -f "[m]ain.py .*--f_name $name ")

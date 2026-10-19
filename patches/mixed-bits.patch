@@ -1,0 +1,125 @@
+diff --git a/main.py b/main.py
+index ea615dd..f26c8a9 100644
+--- a/main.py
++++ b/main.py
+@@ -81,6 +81,8 @@ def get_args():
+     parser.add_argument("--residual", type=str2bool, default=False)
+     parser.add_argument("--split_dim", type=int, default=1024)
+     parser.add_argument("--eff_bit", type=float, default=1.0)
++    parser.add_argument("--eff_bit_layers", type=str, default=None,
++                        help='[littlebit-bench] per-block bits, e.g. "0-7,27:2.0" (the rest keep --eff_bit)')
+     parser.add_argument("--kv_factor", type=float, default=1.0)
+     parser.add_argument("--min_split_dim", type=int, default=8)
+ 
+@@ -451,6 +453,7 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+             quant_params = {
+                 "quant_func": getattr(args, "quant_func", "STEBinary"),
+                 "eff_bit": getattr(args, "eff_bit", 1.0),
++                "eff_bit_layers": getattr(args, "eff_bit_layers", None),
+                 "split_dim": getattr(args, "split_dim", 1024),
+                 "residual": getattr(args, "residual", False),
+                 "kv_factor": getattr(args, "kv_factor", 1.0),
+@@ -458,6 +461,7 @@ def save_artifacts(trainer, model, tokenizer, save_dir, args):
+                 "quant_mod": getattr(args, "quant_mod", "LittleBitLinear"),
+                 "use_itq": getattr(args, "use_itq", False),
+                 "itq_n_iter": getattr(args, "itq_n_iter", 50),
++                "repair_rank": int(__import__("os").environ.get("LB_REPAIR_RANK", "0")),   # [littlebit-bench]
+             }
+ 
+             littlebit_config_path = os.path.join(save_dir, "littlebit_config.json")
+diff --git a/eval.py b/eval.py
+index b78500a..6c5d0f4 100644
+--- a/eval.py
++++ b/eval.py
+@@ -148,7 +148,7 @@ def main(args):
+         # Only collect arguments that are NOT None (i.e., user explicitly set them)
+         quant_kwargs = {}
+         quant_keys = [
+-            "quant_func", "quant_mod", "residual", "split_dim", "eff_bit", "kv_factor", "use_itq", "itq_n_iter"
++            "quant_func", "quant_mod", "residual", "split_dim", "eff_bit", "eff_bit_layers", "kv_factor", "use_itq", "itq_n_iter"
+         ]
+         for key in quant_keys:
+             val = getattr(args, key)
+@@ -223,6 +223,7 @@ if __name__ == "__main__":
+     parser.add_argument("--residual", type=str2bool, default=None)
+     parser.add_argument("--split_dim", type=int, default=None)
+     parser.add_argument("--eff_bit", type=float, default=None)
++    parser.add_argument("--eff_bit_layers", type=str, default=None)
+     parser.add_argument("--kv_factor", type=float, default=None)
+     parser.add_argument("--use_itq", type=str2bool, default=None)
+     parser.add_argument("--itq_n_iter", type=int, default=None)
+diff --git a/quantization/hub.py b/quantization/hub.py
+index 2ee1360..8aadb01 100644
+--- a/quantization/hub.py
++++ b/quantization/hub.py
+@@ -37,6 +37,7 @@ class LittleBitConfig:
+     """Quantization configuration for LittleBit models."""
+     quant_func: str = "STEBinary"
+     eff_bit: float = 1.0
++    eff_bit_layers: str = None   # [littlebit-bench] per-block bits ("0-7,27:2.0")
+     split_dim: int = 1024
+     residual: bool = False
+     kv_factor: float = 1.0
+@@ -240,6 +241,7 @@ class LittleBitModel(nn.Module, PyTorchModelHubMixin):
+         quant_args = argparse.Namespace(
+             quant_func=getattr(config, "quant_func", "STEBinary"),
+             eff_bit=getattr(config, "eff_bit", 1.0),
++            eff_bit_layers=getattr(config, "eff_bit_layers", None),
+             split_dim=getattr(config, "split_dim", 1024),
+             residual=getattr(config, "residual", False),
+             kv_factor=getattr(config, "kv_factor", 1.0),
+diff --git a/quantization/utils/quant_util.py b/quantization/utils/quant_util.py
+index c40a351..f10016d 100644
+--- a/quantization/utils/quant_util.py
++++ b/quantization/utils/quant_util.py
+@@ -15,7 +15,7 @@ from transformers import AutoConfig, AutoModelForCausalLM
+ 
+ from quantization.modules import LittleBitLinear
+ 
+-__all__ = ['patch_inst', 'load_quantized_model', 'apply_littlebit_patch', 'get_quant_func_and_mod']
++__all__ = ['patch_inst', 'load_quantized_model', 'apply_littlebit_patch', 'get_quant_func_and_mod', 'parse_eff_bit_layers']
+ 
+ 
+ def _match_pattern(patterns: list, model: nn.Module, name: str, mod: nn.Module) -> bool:
+@@ -108,6 +108,22 @@ def get_quant_func_and_mod(quant_func_name, quant_mod_name):
+     return quant_func, quant_mod
+ 
+ 
++def parse_eff_bit_layers(spec):
++    """[littlebit-bench] "0-7,27:2.0;12:1.5" -> [([0..7, 27], 2.0), ([12], 1.5)]; None or "" -> []."""
++    out = []
++    for group in (spec or "").split(";"):
++        group = group.strip()
++        if not group:
++            continue
++        blocks_s, bits_s = group.rsplit(":", 1)
++        blocks = []
++        for part in blocks_s.split(","):
++            a, _, b = part.strip().partition("-")
++            blocks += list(range(int(a), int(b) + 1)) if b else [int(a)]
++        out.append((sorted(set(blocks)), float(bits_s)))
++    return out
++
++
+ def apply_littlebit_patch(model: nn.Module, args, do_train: bool = False):
+     """
+     A high-level wrapper to apply LittleBit quantization patch to any model.
+@@ -144,6 +160,10 @@ def apply_littlebit_patch(model: nn.Module, args, do_train: bool = False):
+         ([nn.Linear], common_kwargs),
+         (KV_PATTERN, kv_kwargs),
+     ]
++    # [littlebit-bench] mixed bits: --eff_bit_layers "0-7,27:2.0" gives those decoder blocks their own eff_bit
++    # (patch_inst applies the matching entries in order, so these override common_kwargs' eff_bit)
++    for blocks, bits in parse_eff_bit_layers(getattr(args, "eff_bit_layers", None)):
++        convert_kwargs.append(([re.compile(r"\.layers\.(" + "|".join(map(str, blocks)) + r")\.")], {"eff_bit": bits}))
+ 
+     config = getattr(model, "config", None)
+     model_type = getattr(config, "model_type", "").lower() if config else ""
+diff --git a/quantization/utils/__init__.py b/quantization/utils/__init__.py
+index 7f4b5d3..e02231e 100644
+--- a/quantization/utils/__init__.py
++++ b/quantization/utils/__init__.py
+@@ -1,2 +1,2 @@
+-from .quant_util import get_quant_func_and_mod, patch_inst, apply_littlebit_patch
++from .quant_util import get_quant_func_and_mod, patch_inst, apply_littlebit_patch, parse_eff_bit_layers
+ from .binary_packer import binary_packer
